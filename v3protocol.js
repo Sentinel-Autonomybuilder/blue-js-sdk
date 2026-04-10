@@ -1025,29 +1025,29 @@ export async function initHandshakeV3V2Ray(remoteUrl, sessionId, cosmosPrivKey, 
 // Use these build* functions when calling broadcast/signAndBroadcast directly.
 
 export function buildMsgStartSession(params) {
-  return { typeUrl: '/sentinel.node.v3.MsgStartSessionRequest', value: encodeMsgStartSession(params) };
+  return { typeUrl: '/sentinel.node.v3.MsgStartSessionRequest', value: params };
 }
 export function buildMsgEndSession(params) {
-  return { typeUrl: '/sentinel.session.v3.MsgCancelSessionRequest', value: encodeMsgEndSession(params) };
+  return { typeUrl: '/sentinel.session.v3.MsgCancelSessionRequest', value: params };
 }
 export function buildMsgStartSubscription(params) {
-  return { typeUrl: '/sentinel.subscription.v3.MsgStartSubscriptionRequest', value: encodeMsgStartSubscription(params) };
+  return { typeUrl: '/sentinel.subscription.v3.MsgStartSubscriptionRequest', value: params };
 }
 export function buildMsgSubStartSession(params) {
-  return { typeUrl: '/sentinel.subscription.v3.MsgStartSessionRequest', value: encodeMsgSubStartSession(params) };
+  return { typeUrl: '/sentinel.subscription.v3.MsgStartSessionRequest', value: params };
 }
 export function buildMsgCancelSubscription(params) {
-  return { typeUrl: '/sentinel.subscription.v3.MsgCancelSubscriptionRequest', value: encodeMsgCancelSubscription(params) };
+  return { typeUrl: '/sentinel.subscription.v3.MsgCancelSubscriptionRequest', value: params };
 }
 export function buildMsgRenewSubscription(params) {
-  return { typeUrl: '/sentinel.subscription.v3.MsgRenewSubscriptionRequest', value: encodeMsgRenewSubscription(params) };
+  return { typeUrl: '/sentinel.subscription.v3.MsgRenewSubscriptionRequest', value: params };
 }
 export function buildMsgShareSubscription(params) {
-  return { typeUrl: '/sentinel.subscription.v3.MsgShareSubscriptionRequest', value: encodeMsgShareSubscription(params) };
+  return { typeUrl: '/sentinel.subscription.v3.MsgShareSubscriptionRequest', value: params };
 }
 export function buildMsgUpdateSubscription(params) {
-  return { typeUrl: '/sentinel.subscription.v3.MsgUpdateSubscriptionRequest', value: encodeMsgUpdateSubscription(params) };
+  return { typeUrl: '/sentinel.subscription.v3.MsgUpdateSubscriptionRequest', value: params };
 }
 export function buildMsgUpdateSession(params) {
-  return { typeUrl: '/sentinel.session.v3.MsgUpdateSessionRequest', value: encodeMsgUpdateSession(params) };
+  return { typeUrl: '/sentinel.session.v3.MsgUpdateSessionRequest', value: params };
 }

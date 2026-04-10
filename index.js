@@ -237,6 +237,73 @@ export {
   buildMsgUpdateSession,
 } from './v3protocol.js';
 
+// ─── Typed Message Builders (return { typeUrl, value } EncodeObject) ────────
+// These are the RECOMMENDED way to build messages for signAndBroadcast.
+// The encodeMsg* functions above return raw Uint8Array (for internal/advanced use).
+
+export {
+  TYPE_URLS,
+  buildMsgStartSession as buildMsg_StartSession,
+  buildMsgCancelSession,
+  buildMsgEndSession as buildMsg_EndSession,
+  buildMsgUpdateSession as buildMsg_UpdateSession,
+  buildMsgStartSubscription as buildMsg_StartSubscription,
+  buildMsgSubStartSession as buildMsg_SubStartSession,
+  buildMsgCancelSubscription as buildMsg_CancelSubscription,
+  buildMsgRenewSubscription as buildMsg_RenewSubscription,
+  buildMsgShareSubscription as buildMsg_ShareSubscription,
+  buildMsgUpdateSubscription as buildMsg_UpdateSubscription,
+  buildMsgPlanStartSession as buildMsg_PlanStartSession,
+  buildMsgCreatePlan as buildMsg_CreatePlan,
+  buildMsgUpdatePlanDetails as buildMsg_UpdatePlanDetails,
+  buildMsgUpdatePlanStatus as buildMsg_UpdatePlanStatus,
+  buildMsgLinkNode as buildMsg_LinkNode,
+  buildMsgUnlinkNode as buildMsg_UnlinkNode,
+  buildMsgRegisterProvider as buildMsg_RegisterProvider,
+  buildMsgUpdateProviderDetails as buildMsg_UpdateProviderDetails,
+  buildMsgUpdateProviderStatus as buildMsg_UpdateProviderStatus,
+  buildMsgStartLease as buildMsg_StartLease,
+  buildMsgEndLease as buildMsg_EndLease,
+  buildMsgRegisterNode as buildMsg_RegisterNode,
+  buildMsgUpdateNodeDetails as buildMsg_UpdateNodeDetails,
+  buildMsgUpdateNodeStatus as buildMsg_UpdateNodeStatus,
+} from './protocol/messages.js';
+
+// ─── Typed Event Parsers ────────────────────────────────────────────────────
+
+export {
+  searchEvent,
+  searchEvents,
+  extractSessionIdTyped,
+  NodeEventCreateSession,
+  NodeEventPay,
+  NodeEventRefund,
+  NodeEventUpdateStatus,
+  SessionEventEnd,
+  SessionEventUpdateDetails,
+  SubscriptionEventCreate,
+  SubscriptionEventCreateSession,
+  SubscriptionEventPay,
+  SubscriptionEventEnd,
+  LeaseEventCreate,
+  LeaseEventEnd,
+} from './protocol/events.js';
+
+// ─── RPC Queries (protobuf via CosmJS — 912x faster than LCD) ───────────────
+
+export {
+  createRpcQueryClient,
+  createRpcQueryClientWithFallback,
+  disconnectRpc,
+  rpcQueryNodes,
+  rpcQueryNode,
+  rpcQueryNodesForPlan,
+  rpcQuerySessionsForAccount,
+  rpcQuerySubscriptionsForAccount,
+  rpcQueryPlan,
+  rpcQueryBalance,
+} from './chain/rpc.js';
+
 // ─── State Persistence (crash recovery) ─────────────────────────────────────
 
 export {
