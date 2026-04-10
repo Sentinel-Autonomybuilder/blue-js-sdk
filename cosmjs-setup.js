@@ -69,7 +69,15 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
  *   if (isMnemonicValid(userInput)) showConnectButton();
  */
 export function isMnemonicValid(mnemonic) {
-  return typeof mnemonic === 'string' && mnemonic.trim().split(/\s+/).length >= 12;
+  if (typeof mnemonic !== 'string') return false;
+  const trimmed = mnemonic.trim();
+  if (trimmed.split(/\s+/).length < 12) return false;
+  try {
+    new EnglishMnemonic(trimmed);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function validateMnemonic(mnemonic, fnName) {
