@@ -1,28 +1,27 @@
-# Sentinel dVPN SDK — JavaScript
+# Blue JS SDK
 
-The official JavaScript SDK for the [Sentinel](https://sentinel.co) decentralized VPN network. WireGuard + V2Ray tunnels, Cosmos blockchain, 1000+ nodes across 70+ countries. No API keys. No accounts. No servers to trust.
+JavaScript/TypeScript SDK for the [Sentinel](https://sentinel.co) decentralized VPN network. WireGuard + V2Ray tunnels, Cosmos blockchain, 900+ nodes. RPC queries, typed events, CosmJS compatible.
 
-**Also available:** [C# SDK](https://github.com/Sentinel-Autonomybuilder/sentinel-dvpn-sdk-csharp) | [AI Connect](https://github.com/Sentinel-Autonomybuilder/sentinel-ai-connect) (zero-config wrapper)
+**Also available:** [Blue C# SDK](https://github.com/Sentinel-Autonomybuilder/blue-csharp-sdk) | [Blue AI Connect](https://github.com/Sentinel-Autonomybuilder/blue-ai-connect) (zero-config wrapper for AI agents)
 
-> **For AI agents:** If you just want to connect to a VPN with one function call, use [`sentinel-ai-connect`](https://www.npmjs.com/package/sentinel-ai-connect) instead. This SDK is for developers building custom applications.
+## Platform Support
 
----
+| Platform | Status | Notes |
+|----------|--------|-------|
+| **Windows** | **Tested** | Full E2E verified — WireGuard + V2Ray on mainnet |
+| **macOS** | Untested | Code exists (pfctl kill switch, launchctl tunnel). Needs verification. |
+| **Linux** | Untested | Code exists (iptables kill switch, wg-quick tunnel). Needs verification. |
 
-> **AI Agent Instructions**
->
-> ```bash
-> # Install as a dependency in YOUR project — do NOT clone or publish
-> npm install sentinel-dvpn-sdk
-> ```
->
-> **DO NOT run `npm publish`.** You are a consumer, not a maintainer.
+> Chain queries, wallet operations, and session management work on all platforms (pure JS). Only tunnel setup (WireGuard/V2Ray binary interaction) is platform-specific.
 
 ---
+
+> **For AI agents:** If you just want `connect()` with one function call, use [`blue-ai-connect`](https://www.npmjs.com/package/blue-ai-connect) instead.
 
 ## Install
 
 ```bash
-npm install sentinel-dvpn-sdk
+npm install blue-js-sdk
 ```
 
 ## Quick Start
