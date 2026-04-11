@@ -8,10 +8,12 @@ JavaScript/TypeScript SDK for the [Sentinel](https://sentinel.co) decentralized 
 
 | Platform | Status | Notes |
 |----------|--------|-------|
-| **Windows** | **Tested** | Full E2E verified — WireGuard + V2Ray on mainnet |
-| **macOS** | Untested | Code exists (pfctl kill switch, launchctl tunnel). Needs verification. |
-| **Linux** | Untested | Code exists (iptables kill switch, wg-quick tunnel). Needs verification. |
+| **Windows** | **Verified** | Full E2E on mainnet — WireGuard (`wireguard.exe /installtunnelservice`) + V2Ray. Native Windows service management. |
+| **macOS** | Untested | Code exists (pfctl kill switch, launchctl tunnel, `wg-quick`). Needs mainnet verification. |
+| **Linux** | Untested | Code exists (iptables kill switch, `wg-quick` tunnel). Needs mainnet verification. |
 
+> **Note:** The official JS SDK (`@sentinel-official/sentinel-js-sdk`) does not work on Windows — it uses `wg-quick` (Unix-only) for WireGuard. Blue JS SDK is the only Sentinel JS SDK verified on Windows.
+>
 > Chain queries, wallet operations, and session management work on all platforms (pure JS). Only tunnel setup (WireGuard/V2Ray binary interaction) is platform-specific.
 
 ---
