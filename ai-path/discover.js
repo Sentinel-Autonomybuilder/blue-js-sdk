@@ -16,6 +16,9 @@ import {
   TRANSPORT_SUCCESS_RATES,
   LCD_ENDPOINTS,
   tryWithFallback,
+  // v1.5.0: RPC queries (protobuf via ABCI, ~10x faster than LCD for node lists)
+  createRpcQueryClientWithFallback,
+  rpcQueryNodes,
 } from '../index.js';
 
 // ─── discoverNodes() ─────────────────────────────────────────────────────────
@@ -60,13 +63,20 @@ export async function discoverNodes(opts = {}) {
       onNodeProbed: opts.onProgress || undefined,
     });
   } else {
-    // Fast path: query blockchain for all active nodes (default)
-    const { result } = await tryWithFallback(
-      LCD_ENDPOINTS,
-      fetchActiveNodes,
-      'discoverNodes',
-    );
-    nodes = result;
+    // Fast path: query blockchain for all active nodes
+    // v1.5.0: Try RPC first (protobuf, ~10x faster), fall back to LCD
+    try {
+      const rpcClient = await createRpcQueryClientWithFallback();
+      nodes = await rpcQueryNodes(rpcClient, { status: 1, limit: 5000 });
+    } catch {
+      // RPC failed — fall back to LCD
+      const { result } = await tryWithFallback(
+        LCD_ENDPOINTS,
+        fetchActiveNodes,
+        'discoverNodes',
+      );
+      nodes = result;
+    }
   }
 
   // Apply filters

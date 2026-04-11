@@ -18,6 +18,9 @@ import {
   DEFAULT_RPC,
   tryWithFallback,
   RPC_ENDPOINTS,
+  // v1.5.0: RPC queries (protobuf, ~10x faster than LCD for balance)
+  createRpcQueryClientWithFallback,
+  rpcQueryBalance,
 } from '../index.js';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
@@ -96,14 +99,30 @@ export async function getBalance(mnemonic) {
     // Create wallet to get address
     const { wallet, account } = await sdkCreateWallet(mnemonic);
 
-    // Connect to RPC with fallback
+    // v1.5.0: Try RPC query first (protobuf, ~10x faster than LCD/signing client)
+    // Falls back to signing client + sdkGetBalance if RPC unavailable
+    try {
+      const rpcClient = await createRpcQueryClientWithFallback();
+      const coin = await rpcQueryBalance(rpcClient, account.address, 'udvpn');
+      const udvpn = parseInt(coin.amount, 10) || 0;
+      return {
+        address: account.address,
+        p2p: formatP2P(udvpn),
+        udvpn,
+        funded: udvpn >= FUNDED_THRESHOLD,
+      };
+    } catch {
+      // RPC failed — fall back to signing client (LCD-based)
+    }
+
+    // Fallback: Connect via signing client with RPC endpoints
     const { result: client } = await tryWithFallback(
       RPC_ENDPOINTS,
       async (url) => createClient(url, wallet),
       'RPC connect (balance check)',
     );
 
-    // Query balance
+    // Query balance via signing client
     const bal = await sdkGetBalance(client, account.address);
 
     return {

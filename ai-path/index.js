@@ -41,3 +41,20 @@ export { connect, disconnect, status, isVpnActive, verify, verifySplitTunnel, on
 // ─── Error Handling ─────────────────────────────────────────────────────────
 
 export { AiPathError, AiPathErrorCodes } from './errors.js';
+
+// ─── SDK Internals (advanced — for agents that need typed access) ───────────
+
+export {
+  // v1.5.0: Typed event parsers (structured TX event handling)
+  extractSessionIdTyped,
+  NodeEventCreateSession,
+  SubscriptionEventCreateSession,
+  searchEvent,
+  // v1.5.0: TYPE_URLS constants (canonical Sentinel message type URLs)
+  TYPE_URLS,
+  // v1.5.0: RPC queries (protobuf, ~10x faster than LCD)
+  createRpcQueryClientWithFallback,
+  rpcQueryNodes,
+  rpcQueryBalance,
+  rpcQueryNode,
+} from '../index.js';

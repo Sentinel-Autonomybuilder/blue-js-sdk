@@ -97,7 +97,7 @@ function parseArgs(argv) {
 
 function banner() {
   console.log('');
-  console.log(`${c.bold}${c.cyan}  Sentinel AI Connect${c.reset}  ${c.dim}v0.1.0${c.reset}`);
+  console.log(`${c.bold}${c.cyan}  Sentinel AI Connect${c.reset}  ${c.dim}v0.2.0${c.reset}`);
   console.log(`${c.dim}  Decentralized VPN for AI agents${c.reset}`);
   console.log('');
 }

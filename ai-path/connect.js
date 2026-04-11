@@ -32,6 +32,14 @@ import {
   getBalance as sdkGetBalance,
   tryWithFallback,
   RPC_ENDPOINTS,
+  // v1.5.0: RPC queries (protobuf, ~10x faster than LCD for balance checks)
+  createRpcQueryClientWithFallback,
+  rpcQueryBalance,
+  // v1.5.0: Typed event parsers (replaces string matching for session ID extraction)
+  extractSessionIdTyped,
+  NodeEventCreateSession,
+  // v1.5.0: TYPE_URLS constants (canonical type URL strings)
+  TYPE_URLS,
 } from '../index.js';
 
 // Use native fetch (Node 20+) for IP check — no axios dependency needed
@@ -197,6 +205,23 @@ function humanError(err) {
 async function preValidateBalance(mnemonic) {
   try {
     const { wallet, account } = await sdkCreateWallet(mnemonic);
+
+    // v1.5.0: Try RPC query first (protobuf, ~10x faster — no signing client needed)
+    try {
+      const rpcClient = await createRpcQueryClientWithFallback();
+      const coin = await rpcQueryBalance(rpcClient, account.address, 'udvpn');
+      const udvpn = parseInt(coin.amount, 10) || 0;
+      return {
+        address: account.address,
+        udvpn,
+        p2p: formatP2P(udvpn),
+        sufficient: udvpn >= MIN_BALANCE_UDVPN,
+      };
+    } catch {
+      // RPC failed — fall back to signing client
+    }
+
+    // Fallback: signing client + sdkGetBalance (LCD-based)
     const { result: client } = await tryWithFallback(
       RPC_ENDPOINTS,
       async (url) => createClient(url, wallet),

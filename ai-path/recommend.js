@@ -18,6 +18,9 @@ import {
   WG_AVAILABLE,
   TRANSPORT_SUCCESS_RATES,
   COUNTRY_MAP,
+  // v1.5.0: RPC queries (protobuf, ~10x faster than LCD for node lists)
+  createRpcQueryClientWithFallback,
+  rpcQueryNodes,
 } from '../index.js';
 
 // ─── Country Proximity Map ──────────────────────────────────────────────────
@@ -180,7 +183,15 @@ export async function recommend(preferences = {}) {
       reasoning.push('Country filter requested — probing nodes for location data...');
       allNodes = await queryOnlineNodes({ maxNodes: maxNodes * 3 });
     } else {
-      allNodes = await fetchActiveNodes();
+      // v1.5.0: Try RPC first (protobuf, ~10x faster), fall back to LCD
+      try {
+        const rpcClient = await createRpcQueryClientWithFallback();
+        allNodes = await rpcQueryNodes(rpcClient, { status: 1, limit: 5000 });
+        reasoning.push('Used RPC query (fast path)');
+      } catch {
+        allNodes = await fetchActiveNodes();
+        reasoning.push('Used LCD query (fallback)');
+      }
     }
     reasoning.push(`Found ${allNodes.length} active nodes`);
   } catch (err) {
