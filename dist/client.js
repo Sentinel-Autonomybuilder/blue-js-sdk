@@ -59,10 +59,11 @@ function encodeEmbedded(fieldNum, bytes) {
     return concat([tag, len, bytes]);
 }
 function encodePagination(opts = {}) {
+    // cosmos.base.query.v1beta1.PageRequest: field 1=key, 2=offset, 3=limit
     const parts = [];
     if (opts.key)
         parts.push(encodeEmbedded(1, opts.key));
-    parts.push(encodeUint64(2, opts.limit ?? 100));
+    parts.push(encodeUint64(3, opts.limit ?? 100)); // field 3: limit (NOT field 2 which is offset)
     return concat(parts);
 }
 function decodeProto(buf) {

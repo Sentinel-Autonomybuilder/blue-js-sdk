@@ -57,4 +57,9 @@ export {
   rpcQueryNodes,
   rpcQueryBalance,
   rpcQueryNode,
+  // v1.5.2: Session recovery (referenced in docs but was missing from exports)
+  recoverOrphans,
 } from '../index.js';
+
+// Re-export recoverOrphans as recoverSession (the name used in ai-path docs)
+export { recoverOrphans as recoverSession };

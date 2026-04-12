@@ -139,11 +139,13 @@ function encodeEmbedded(fieldNum, bytes) {
 }
 
 function encodePagination({ limit = 100, key, countTotal = false, reverse = false } = {}) {
+  // cosmos.base.query.v1beta1.PageRequest proto fields:
+  // 1=key, 2=offset, 3=limit, 4=count_total, 5=reverse
   const parts = [];
-  if (key) parts.push(encodeString(1, key));  // key
-  parts.push(encodeUint64(2, limit));          // limit
-  if (countTotal) parts.push(encodeEnum(4, 1)); // count_total
-  if (reverse) parts.push(encodeEnum(5, 1));    // reverse
+  if (key) parts.push(encodeString(1, key));    // field 1: key
+  parts.push(encodeUint64(3, limit));            // field 3: limit (NOT field 2 which is offset)
+  if (countTotal) parts.push(encodeEnum(4, 1));  // field 4: count_total
+  if (reverse) parts.push(encodeEnum(5, 1));     // field 5: reverse
   return concat(parts);
 }
 
