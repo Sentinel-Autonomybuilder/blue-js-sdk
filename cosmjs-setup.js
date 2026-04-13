@@ -50,7 +50,7 @@ import {
   encodeMsgStartLease,
   encodeMsgEndLease,
 } from './plan-operations.js';
-import { GAS_PRICE, LCD_ENDPOINTS, tryWithFallback } from './defaults.js';
+import { GAS_PRICE, RPC_ENDPOINTS, LCD_ENDPOINTS, tryWithFallback } from './defaults.js';
 import { ValidationError, NodeError, ChainError, ErrorCodes } from './errors.js';
 import path from 'path';
 import os from 'os';
@@ -216,12 +216,57 @@ export function buildRegistry() {
 /**
  * Create a SigningStargateClient connected to Sentinel RPC.
  * Gas price: from defaults.js GAS_PRICE (chain minimum).
+ *
+ * Signatures:
+ *   createClient(rpcUrl, wallet)  — classic: connect to specific RPC with existing wallet
+ *   createClient(mnemonic)        — convenience: create wallet from mnemonic, try RPC endpoints with failover
+ *
+ * @param {string} rpcUrlOrMnemonic - Either an RPC URL (https://...) or a BIP39 mnemonic
+ * @param {DirectSecp256k1HdWallet} [wallet] - Wallet object (required when first arg is RPC URL)
+ * @returns {Promise<SigningStargateClient>} Connected signing client with full Sentinel registry
  */
-export async function createClient(rpcUrl, wallet) {
-  return SigningStargateClient.connectWithSigner(rpcUrl, wallet, {
-    gasPrice: GasPrice.fromString(GAS_PRICE),
-    registry: buildRegistry(),
-  });
+export async function createClient(rpcUrlOrMnemonic, wallet) {
+  // Classic call: createClient(rpcUrl, wallet)
+  if (wallet) {
+    return SigningStargateClient.connectWithSigner(rpcUrlOrMnemonic, wallet, {
+      gasPrice: GasPrice.fromString(GAS_PRICE),
+      registry: buildRegistry(),
+    });
+  }
+
+  // If first arg looks like a URL, it's a missing wallet — throw helpful error
+  if (typeof rpcUrlOrMnemonic === 'string' && /^(https?|wss?):\/\//i.test(rpcUrlOrMnemonic)) {
+    throw new ValidationError(ErrorCodes.INVALID_MNEMONIC,
+      'createClient(rpcUrl, wallet): wallet parameter is required when passing an RPC URL. ' +
+      'Use createClient(mnemonic) for convenience, or createClient(rpcUrl, wallet) with an existing wallet.',
+      { value: rpcUrlOrMnemonic });
+  }
+
+  // Convenience call: createClient(mnemonic) — create wallet + try RPC endpoints
+  validateMnemonic(rpcUrlOrMnemonic, 'createClient');
+  const { wallet: derivedWallet } = await createWallet(rpcUrlOrMnemonic);
+  const registry = buildRegistry();
+  const gasPrice = GasPrice.fromString(GAS_PRICE);
+
+  // Try each RPC endpoint until one connects
+  const errors = [];
+  for (const ep of RPC_ENDPOINTS) {
+    try {
+      const client = await SigningStargateClient.connectWithSigner(ep.url, derivedWallet, {
+        gasPrice,
+        registry,
+      });
+      return client;
+    } catch (err) {
+      errors.push({ endpoint: ep.url, name: ep.name, error: err.message });
+    }
+  }
+
+  // All endpoints failed
+  const tried = errors.map(e => `  ${e.name} (${e.endpoint}): ${e.error}`).join('\n');
+  throw new ChainError('ALL_ENDPOINTS_FAILED',
+    `createClient(mnemonic): failed to connect to all ${RPC_ENDPOINTS.length} RPC endpoints:\n${tried}`,
+    { endpoints: errors });
 }
 
 // ─── TX Helpers ──────────────────────────────────────────────────────────────
