@@ -105,13 +105,15 @@ export function encodeDuration({ seconds, nanos = 0 }) {
  *   4: hours        (int64, 0 if using gigabytes)
  *   5: max_price    (Price, optional) — max price user will pay per GB
  */
-export function encodeMsgStartSession({ from, node_address, gigabytes = 1, hours = 0, max_price }) {
+export function encodeMsgStartSession({ from, node_address, nodeAddress, gigabytes = 1, hours = 0, max_price, maxPrice }) {
+  const addr = node_address || nodeAddress;
+  const price = max_price || maxPrice;
   return Uint8Array.from(Buffer.concat([
     protoString(1, from),
-    protoString(2, node_address),
+    protoString(2, addr),
     protoInt64(3, gigabytes),
     hours ? protoInt64(4, hours) : Buffer.alloc(0),
-    max_price ? protoEmbedded(5, encodePrice(max_price)) : Buffer.alloc(0),
+    price ? protoEmbedded(5, encodePrice(price)) : Buffer.alloc(0),
   ]));
 }
 
@@ -122,13 +124,14 @@ export function encodeMsgStartSession({ from, node_address, gigabytes = 1, hours
  *   3: denom  (string, e.g. "udvpn")
  *   4: renewal_price_policy (enum/int64, optional)
  */
-export function encodeMsgStartSubscription({ from, id, denom = 'udvpn', renewalPricePolicy = 0 }) {
+export function encodeMsgStartSubscription({ from, id, denom = 'udvpn', renewalPricePolicy, renewal_price_policy }) {
+  const policy = renewalPricePolicy || renewal_price_policy || 0;
   const parts = [
     protoString(1, from),
     protoInt64(2, id),
     protoString(3, denom),
   ];
-  if (renewalPricePolicy) parts.push(protoInt64(4, renewalPricePolicy));
+  if (policy) parts.push(protoInt64(4, policy));
   return Uint8Array.from(Buffer.concat(parts));
 }
 
@@ -138,11 +141,12 @@ export function encodeMsgStartSubscription({ from, id, denom = 'udvpn', renewalP
  *   2: id              (uint64, subscription ID)
  *   3: node_address    (string)
  */
-export function encodeMsgSubStartSession({ from, id, nodeAddress }) {
+export function encodeMsgSubStartSession({ from, id, nodeAddress, node_address }) {
+  const addr = nodeAddress || node_address;
   return Uint8Array.from(Buffer.concat([
     protoString(1, from),
     protoInt64(2, id),
-    protoString(3, nodeAddress),
+    protoString(3, addr),
   ]));
 }
 
@@ -179,14 +183,15 @@ export function encodeMsgRenewSubscription({ from, id, denom = 'udvpn' }) {
  *   1: from        (string)
  *   2: id          (uint64, subscription ID)
  *   3: acc_address (string, recipient sent1... address)
- *   4: bytes       (int64, bytes to share)
+ *   4: bytes       (string — cosmossdk.io/math.Int, wire type 2 = length-delimited)
  */
-export function encodeMsgShareSubscription({ from, id, accAddress, bytes }) {
+export function encodeMsgShareSubscription({ from, id, accAddress, acc_address, bytes }) {
+  const addr = accAddress || acc_address;
   return Uint8Array.from(Buffer.concat([
     protoString(1, from),
     protoInt64(2, id),
-    protoString(3, accAddress),
-    protoInt64(4, bytes),
+    protoString(3, addr),
+    protoString(4, String(bytes)),
   ]));
 }
 
@@ -196,11 +201,12 @@ export function encodeMsgShareSubscription({ from, id, accAddress, bytes }) {
  *   2: id                   (uint64, subscription ID)
  *   3: renewal_price_policy (int64)
  */
-export function encodeMsgUpdateSubscription({ from, id, renewalPricePolicy }) {
+export function encodeMsgUpdateSubscription({ from, id, renewalPricePolicy, renewal_price_policy }) {
+  const policy = renewalPricePolicy || renewal_price_policy;
   return Uint8Array.from(Buffer.concat([
     protoString(1, from),
     protoInt64(2, id),
-    protoInt64(3, renewalPricePolicy),
+    protoInt64(3, policy),
   ]));
 }
 
@@ -215,12 +221,14 @@ export function encodeMsgUpdateSubscription({ from, id, renewalPricePolicy }) {
  *   5: duration        (bytes, protobuf Duration)
  *   6: signature       (bytes)
  */
-export function encodeMsgUpdateSession({ from, id, downloadBytes, uploadBytes }) {
+export function encodeMsgUpdateSession({ from, id, downloadBytes, download_bytes, uploadBytes, upload_bytes }) {
+  const dl = downloadBytes || download_bytes;
+  const ul = uploadBytes || upload_bytes;
   return Uint8Array.from(Buffer.concat([
     protoString(1, from),
     protoInt64(2, id),
-    protoInt64(3, downloadBytes),
-    protoInt64(4, uploadBytes),
+    protoInt64(3, dl),
+    protoInt64(4, ul),
   ]));
 }
 
@@ -233,11 +241,14 @@ export function encodeMsgUpdateSession({ from, id, downloadBytes, uploadBytes })
  *   3: hourly_prices     (bytes[], Price entries)
  *   4: remote_addrs      (string[], IP:port addresses)
  */
-export function encodeMsgRegisterNode({ from, gigabytePrices = [], hourlyPrices = [], remoteAddrs = [] }) {
+export function encodeMsgRegisterNode({ from, gigabytePrices, gigabyte_prices, hourlyPrices, hourly_prices, remoteAddrs, remote_addrs }) {
+  const gbPrices = gigabytePrices || gigabyte_prices || [];
+  const hrPrices = hourlyPrices || hourly_prices || [];
+  const addrs = remoteAddrs || remote_addrs || [];
   const parts = [protoString(1, from)];
-  for (const p of gigabytePrices) parts.push(protoEmbedded(2, encodePrice(p)));
-  for (const p of hourlyPrices) parts.push(protoEmbedded(3, encodePrice(p)));
-  for (const addr of remoteAddrs) parts.push(protoString(4, addr));
+  for (const p of gbPrices) parts.push(protoEmbedded(2, encodePrice(p)));
+  for (const p of hrPrices) parts.push(protoEmbedded(3, encodePrice(p)));
+  for (const addr of addrs) parts.push(protoString(4, addr));
   return Uint8Array.from(Buffer.concat(parts));
 }
 
@@ -248,11 +259,14 @@ export function encodeMsgRegisterNode({ from, gigabytePrices = [], hourlyPrices 
  *   3: hourly_prices     (bytes[], Price entries)
  *   4: remote_addrs      (string[], IP:port addresses)
  */
-export function encodeMsgUpdateNodeDetails({ from, gigabytePrices = [], hourlyPrices = [], remoteAddrs = [] }) {
+export function encodeMsgUpdateNodeDetails({ from, gigabytePrices, gigabyte_prices, hourlyPrices, hourly_prices, remoteAddrs, remote_addrs }) {
+  const gbPrices = gigabytePrices || gigabyte_prices || [];
+  const hrPrices = hourlyPrices || hourly_prices || [];
+  const addrs = remoteAddrs || remote_addrs || [];
   const parts = [protoString(1, from)];
-  for (const p of gigabytePrices) parts.push(protoEmbedded(2, encodePrice(p)));
-  for (const p of hourlyPrices) parts.push(protoEmbedded(3, encodePrice(p)));
-  for (const addr of remoteAddrs) parts.push(protoString(4, addr));
+  for (const p of gbPrices) parts.push(protoEmbedded(2, encodePrice(p)));
+  for (const p of hrPrices) parts.push(protoEmbedded(3, encodePrice(p)));
+  for (const addr of addrs) parts.push(protoString(4, addr));
   return Uint8Array.from(Buffer.concat(parts));
 }
 

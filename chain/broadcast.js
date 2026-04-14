@@ -338,10 +338,10 @@ export function buildBatchStartSession(from, nodes) {
     typeUrl: '/sentinel.node.v3.MsgStartSessionRequest',
     value: {
       from,
-      node_address: n.nodeAddress,
+      nodeAddress: n.nodeAddress,
       gigabytes: n.gigabytes || 1,
       hours: 0,
-      max_price: n.maxPrice,
+      maxPrice: n.maxPrice,
     },
   }));
 }
@@ -382,7 +382,7 @@ export function buildBatchSend(fromAddress, recipients) {
 export function buildBatchLink(provAddress, planId, nodeAddresses) {
   return nodeAddresses.map(addr => ({
     typeUrl: '/sentinel.plan.v3.MsgLinkNodeRequest',
-    value: { from: provAddress, id: BigInt(planId), node_address: addr },
+    value: { from: provAddress, id: BigInt(planId), nodeAddress: addr },
   }));
 }
 
@@ -430,6 +430,116 @@ export async function subscribeToPlan(client, fromAddress, planId, denom = 'udvp
   const subId = extractId(result, /subscription/i, ['subscription_id', 'id']);
   if (!subId) throw new ChainError(ErrorCodes.SESSION_EXTRACT_FAILED, 'Failed to extract subscription ID from TX events', { txHash: result.transactionHash });
   return { subscriptionId: BigInt(subId), txHash: result.transactionHash };
+}
+
+/**
+ * Share a subscription's bandwidth with another address.
+ * The chain only supports bytes-based sharing — there is NO time/duration field.
+ * For time-based plans (e.g. 1 month), the operator must manually remove the user
+ * when the period expires using cancelSubscription or by not renewing.
+ *
+ * @param {SigningStargateClient} client
+ * @param {string} ownerAddress - Subscription owner (sent1...)
+ * @param {number|string|bigint} subscriptionId - Subscription to share
+ * @param {string} recipientAddress - User to add (sent1...)
+ * @param {number|string|bigint} bytes - Bandwidth quota in bytes (e.g. 1073741824 = 1 GB)
+ * @returns {Promise<{ txHash: string }>}
+ */
+export async function shareSubscription(client, ownerAddress, subscriptionId, recipientAddress, bytes) {
+  const msg = {
+    typeUrl: '/sentinel.subscription.v3.MsgShareSubscriptionRequest',
+    value: { from: ownerAddress, id: BigInt(subscriptionId), accAddress: recipientAddress, bytes: String(bytes) },
+  };
+  const result = await broadcast(client, ownerAddress, [msg]);
+  return { txHash: result.transactionHash };
+}
+
+/**
+ * Share a subscription with fee grant — operator pays gas on behalf of user.
+ * Same as shareSubscription() but uses broadcastWithFeeGrant for the TX fee.
+ *
+ * @param {SigningStargateClient} client - Client with owner's wallet
+ * @param {string} ownerAddress - Subscription owner (sent1...)
+ * @param {number|string|bigint} subscriptionId - Subscription to share
+ * @param {string} recipientAddress - User to add (sent1...)
+ * @param {number|string|bigint} bytes - Bandwidth quota in bytes
+ * @param {string} granterAddress - Fee granter address (sent1...)
+ * @returns {Promise<{ txHash: string }>}
+ */
+export async function shareSubscriptionWithFeeGrant(client, ownerAddress, subscriptionId, recipientAddress, bytes, granterAddress) {
+  const msg = {
+    typeUrl: '/sentinel.subscription.v3.MsgShareSubscriptionRequest',
+    value: { from: ownerAddress, id: BigInt(subscriptionId), accAddress: recipientAddress, bytes: String(bytes) },
+  };
+  const result = await broadcastWithFeeGrant(client, ownerAddress, [msg], granterAddress);
+  return { txHash: result.transactionHash };
+}
+
+// ─── Plan User Onboarding (composite operation) ────────────────────────────
+
+/**
+ * Onboard a user to a plan subscription: subscribe → share bandwidth → optional fee grant.
+ * This is the complete "add user to plan" operation for plan operators.
+ *
+ * IMPORTANT: The chain only supports bytes-based sharing. There is NO time/duration
+ * field in MsgShareSubscriptionRequest. For time-based plans (e.g. 1 month), the
+ * operator must track expiry externally and remove/not-renew the user when time expires.
+ *
+ * Steps:
+ *   1. Subscribe to plan (operator pays, creates subscription)
+ *   2. Share the subscription with the user (allocate bytes)
+ *   3. Optionally grant fee allowance (so user's TX gas is paid by operator)
+ *
+ * @param {SigningStargateClient} client - Operator's signing client
+ * @param {string} operatorAddress - Plan operator/owner address (sent1...)
+ * @param {object} opts
+ * @param {number|string|bigint} opts.planId - Plan to subscribe to
+ * @param {string} opts.userAddress - User to onboard (sent1...)
+ * @param {number|string|bigint} opts.bytes - Bandwidth quota in bytes (e.g. 1073741824 = 1 GB)
+ * @param {string} [opts.denom='udvpn'] - Payment denomination
+ * @param {boolean} [opts.grantFee=false] - Also grant fee allowance to user
+ * @param {number} [opts.feeSpendLimit] - Max spend for fee grant in udvpn (default: 500000 = 0.5 P2P)
+ * @param {Date|string} [opts.feeExpiration] - Fee grant expiry date
+ * @param {Function} [opts.buildFeeGrant] - Custom buildFeeGrantMsg function (to avoid circular import)
+ * @returns {Promise<{ subscriptionId: bigint, shareTxHash: string, grantTxHash?: string }>}
+ */
+export async function onboardPlanUser(client, operatorAddress, opts) {
+  const {
+    planId, userAddress, bytes,
+    denom = 'udvpn',
+    grantFee = false,
+    feeSpendLimit = 500_000,
+    feeExpiration,
+    buildFeeGrant,
+  } = opts;
+
+  // Step 1: Subscribe to plan
+  const { subscriptionId, txHash: subTxHash } = await subscribeToPlan(client, operatorAddress, planId, denom);
+
+  // Step 2: Share subscription with user (bytes-based — no time/duration on chain)
+  const shareMsg = {
+    typeUrl: '/sentinel.subscription.v3.MsgShareSubscriptionRequest',
+    value: { from: operatorAddress, id: BigInt(subscriptionId), accAddress: userAddress, bytes: String(bytes) },
+  };
+  const shareResult = await broadcast(client, operatorAddress, [shareMsg]);
+
+  const result = {
+    subscriptionId,
+    subscribeTxHash: subTxHash,
+    shareTxHash: shareResult.transactionHash,
+  };
+
+  // Step 3: Optional fee grant
+  if (grantFee && buildFeeGrant) {
+    const grantMsg = buildFeeGrant(operatorAddress, userAddress, {
+      spendLimit: feeSpendLimit,
+      expiration: feeExpiration,
+    });
+    const grantResult = await broadcast(client, operatorAddress, [grantMsg]);
+    result.grantTxHash = grantResult.transactionHash;
+  }
+
+  return result;
 }
 
 /**

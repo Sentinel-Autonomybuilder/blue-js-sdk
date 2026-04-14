@@ -366,13 +366,15 @@ export function encodePrice({ denom, base_value, quote_value }) {
  *   4: hours        (int64, 0 if using gigabytes)
  *   5: max_price    (Price, optional) — max price user will pay per GB
  */
-export function encodeMsgStartSession({ from, node_address, gigabytes = 1, hours = 0, max_price }) {
+export function encodeMsgStartSession({ from, node_address, nodeAddress, gigabytes = 1, hours = 0, max_price, maxPrice }) {
+  const addr = node_address || nodeAddress;
+  const price = max_price || maxPrice;
   return Uint8Array.from(Buffer.concat([
     protoString(1, from),
-    protoString(2, node_address),
+    protoString(2, addr),
     protoInt64(3, gigabytes),
     hours ? protoInt64(4, hours) : Buffer.alloc(0),
-    max_price ? protoEmbedded(5, encodePrice(max_price)) : Buffer.alloc(0),
+    price ? protoEmbedded(5, encodePrice(price)) : Buffer.alloc(0),
   ]));
 }
 
@@ -383,13 +385,14 @@ export function encodeMsgStartSession({ from, node_address, gigabytes = 1, hours
  *   3: denom  (string, e.g. "udvpn")
  *   4: renewal_price_policy (enum/int64, optional)
  */
-export function encodeMsgStartSubscription({ from, id, denom = 'udvpn', renewalPricePolicy = 0 }) {
+export function encodeMsgStartSubscription({ from, id, denom = 'udvpn', renewalPricePolicy, renewal_price_policy }) {
+  const policy = renewalPricePolicy || renewal_price_policy || 0;
   const parts = [
     protoString(1, from),
     protoInt64(2, id),
     protoString(3, denom),
   ];
-  if (renewalPricePolicy) parts.push(protoInt64(4, renewalPricePolicy));
+  if (policy) parts.push(protoInt64(4, policy));
   return Uint8Array.from(Buffer.concat(parts));
 }
 
@@ -399,11 +402,12 @@ export function encodeMsgStartSubscription({ from, id, denom = 'udvpn', renewalP
  *   2: id              (uint64, subscription ID)
  *   3: node_address    (string)
  */
-export function encodeMsgSubStartSession({ from, id, nodeAddress }) {
+export function encodeMsgSubStartSession({ from, id, nodeAddress, node_address }) {
+  const addr = nodeAddress || node_address;
   return Uint8Array.from(Buffer.concat([
     protoString(1, from),
     protoInt64(2, id),
-    protoString(3, nodeAddress),
+    protoString(3, addr),
   ]));
 }
 

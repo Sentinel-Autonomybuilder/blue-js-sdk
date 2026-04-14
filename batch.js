@@ -142,10 +142,10 @@ async function _processBatch(client, account, batch, gigabytes, denom, ctx) {
     typeUrl: MSG_TYPES.START_SESSION,
     value: {
       from: account.address,
-      node_address: node.address,
+      nodeAddress: node.address,
       gigabytes,
       hours: 0,
-      max_price: {
+      maxPrice: {
         denom: priceEntry.denom,
         base_value: priceEntry.base_value,
         quote_value: priceEntry.quote_value,

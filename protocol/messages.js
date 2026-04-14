@@ -60,10 +60,10 @@ export function buildMsgStartSession({ from, nodeAddress, gigabytes = 1, hours =
     typeUrl: TYPE_URLS.START_SESSION,
     value: {
       from,
-      node_address: nodeAddress,
+      nodeAddress,
       gigabytes: gigabytes || 0,
       hours: hours || 0,
-      max_price: maxPrice || undefined,
+      maxPrice: maxPrice || undefined,
     },
   };
 }
@@ -76,7 +76,7 @@ export function buildMsgStartSession({ from, nodeAddress, gigabytes = 1, hours =
 export function buildMsgCancelSession({ from, id }) {
   return {
     typeUrl: TYPE_URLS.CANCEL_SESSION,
-    value: { from, id: Number(id) },
+    value: { from, id: BigInt(id) },
   };
 }
 
@@ -91,7 +91,7 @@ export const buildMsgEndSession = buildMsgCancelSession;
 export function buildMsgUpdateSession({ from, id, downloadBytes, uploadBytes }) {
   return {
     typeUrl: TYPE_URLS.UPDATE_SESSION,
-    value: { from, id: Number(id), download_bytes: downloadBytes, upload_bytes: uploadBytes },
+    value: { from, id: BigInt(id), downloadBytes, uploadBytes },
   };
 }
 
@@ -105,7 +105,7 @@ export function buildMsgUpdateSession({ from, id, downloadBytes, uploadBytes }) 
 export function buildMsgStartSubscription({ from, id, denom = 'udvpn', renewalPricePolicy = 0 }) {
   return {
     typeUrl: TYPE_URLS.START_SUBSCRIPTION,
-    value: { from, id: Number(id), denom, renewal_price_policy: renewalPricePolicy },
+    value: { from, id: BigInt(id), denom, renewalPricePolicy },
   };
 }
 
@@ -117,7 +117,7 @@ export function buildMsgStartSubscription({ from, id, denom = 'udvpn', renewalPr
 export function buildMsgSubStartSession({ from, id, nodeAddress }) {
   return {
     typeUrl: TYPE_URLS.SUB_START_SESSION,
-    value: { from, id: Number(id), node_address: nodeAddress },
+    value: { from, id: BigInt(id), nodeAddress },
   };
 }
 
@@ -129,7 +129,7 @@ export function buildMsgSubStartSession({ from, id, nodeAddress }) {
 export function buildMsgCancelSubscription({ from, id }) {
   return {
     typeUrl: TYPE_URLS.CANCEL_SUBSCRIPTION,
-    value: { from, id: Number(id) },
+    value: { from, id: BigInt(id) },
   };
 }
 
@@ -141,7 +141,7 @@ export function buildMsgCancelSubscription({ from, id }) {
 export function buildMsgRenewSubscription({ from, id, denom = 'udvpn' }) {
   return {
     typeUrl: TYPE_URLS.RENEW_SUBSCRIPTION,
-    value: { from, id: Number(id), denom },
+    value: { from, id: BigInt(id), denom },
   };
 }
 
@@ -153,7 +153,7 @@ export function buildMsgRenewSubscription({ from, id, denom = 'udvpn' }) {
 export function buildMsgShareSubscription({ from, id, accAddress, bytes }) {
   return {
     typeUrl: TYPE_URLS.SHARE_SUBSCRIPTION,
-    value: { from, id: Number(id), acc_address: accAddress, bytes },
+    value: { from, id: BigInt(id), accAddress, bytes: String(bytes) },
   };
 }
 
@@ -165,7 +165,7 @@ export function buildMsgShareSubscription({ from, id, accAddress, bytes }) {
 export function buildMsgUpdateSubscription({ from, id, renewalPricePolicy }) {
   return {
     typeUrl: TYPE_URLS.UPDATE_SUBSCRIPTION,
-    value: { from, id: Number(id), renewal_price_policy: renewalPricePolicy },
+    value: { from, id: BigInt(id), renewalPricePolicy },
   };
 }
 
@@ -179,7 +179,7 @@ export function buildMsgUpdateSubscription({ from, id, renewalPricePolicy }) {
 export function buildMsgPlanStartSession({ from, id, denom = 'udvpn', renewalPricePolicy = 0, nodeAddress }) {
   return {
     typeUrl: TYPE_URLS.PLAN_START_SESSION,
-    value: { from, id: Number(id), denom, renewal_price_policy: renewalPricePolicy, node_address: nodeAddress },
+    value: { from, id: BigInt(id), denom, renewalPricePolicy, nodeAddress },
   };
 }
 
@@ -203,7 +203,7 @@ export function buildMsgCreatePlan({ from, bytes, duration, prices = [], isPriva
 export function buildMsgUpdatePlanDetails({ from, id, bytes, duration, prices = [] }) {
   return {
     typeUrl: TYPE_URLS.UPDATE_PLAN_DETAILS,
-    value: { from, id: Number(id), bytes: bytes ? String(bytes) : undefined, duration, prices },
+    value: { from, id: BigInt(id), bytes: bytes ? String(bytes) : undefined, duration, prices },
   };
 }
 
@@ -215,7 +215,7 @@ export function buildMsgUpdatePlanDetails({ from, id, bytes, duration, prices = 
 export function buildMsgUpdatePlanStatus({ from, id, status }) {
   return {
     typeUrl: TYPE_URLS.UPDATE_PLAN_STATUS,
-    value: { from, id: Number(id), status },
+    value: { from, id: BigInt(id), status },
   };
 }
 
@@ -227,7 +227,7 @@ export function buildMsgUpdatePlanStatus({ from, id, status }) {
 export function buildMsgLinkNode({ from, id, nodeAddress }) {
   return {
     typeUrl: TYPE_URLS.LINK_NODE,
-    value: { from, id: Number(id), node_address: nodeAddress },
+    value: { from, id: BigInt(id), nodeAddress },
   };
 }
 
@@ -239,7 +239,7 @@ export function buildMsgLinkNode({ from, id, nodeAddress }) {
 export function buildMsgUnlinkNode({ from, id, nodeAddress }) {
   return {
     typeUrl: TYPE_URLS.UNLINK_NODE,
-    value: { from, id: Number(id), node_address: nodeAddress },
+    value: { from, id: BigInt(id), nodeAddress },
   };
 }
 
@@ -291,7 +291,7 @@ export function buildMsgUpdateProviderStatus({ from, status }) {
 export function buildMsgStartLease({ from, nodeAddress, hours, maxPrice, renewalPricePolicy = 0 }) {
   return {
     typeUrl: TYPE_URLS.START_LEASE,
-    value: { from, node_address: nodeAddress, hours, max_price: maxPrice, renewal_price_policy: renewalPricePolicy },
+    value: { from, nodeAddress, hours, maxPrice, renewalPricePolicy },
   };
 }
 
@@ -303,7 +303,7 @@ export function buildMsgStartLease({ from, nodeAddress, hours, maxPrice, renewal
 export function buildMsgEndLease({ from, id }) {
   return {
     typeUrl: TYPE_URLS.END_LEASE,
-    value: { from, id: Number(id) },
+    value: { from, id: BigInt(id) },
   };
 }
 
@@ -317,7 +317,7 @@ export function buildMsgEndLease({ from, id }) {
 export function buildMsgRegisterNode({ from, gigabytePrices = [], hourlyPrices = [], remoteAddrs = [] }) {
   return {
     typeUrl: TYPE_URLS.REGISTER_NODE,
-    value: { from, gigabyte_prices: gigabytePrices, hourly_prices: hourlyPrices, remote_addrs: remoteAddrs },
+    value: { from, gigabytePrices, hourlyPrices, remoteAddrs },
   };
 }
 
@@ -329,7 +329,7 @@ export function buildMsgRegisterNode({ from, gigabytePrices = [], hourlyPrices =
 export function buildMsgUpdateNodeDetails({ from, gigabytePrices = [], hourlyPrices = [], remoteAddrs = [] }) {
   return {
     typeUrl: TYPE_URLS.UPDATE_NODE_DETAILS,
-    value: { from, gigabyte_prices: gigabytePrices, hourly_prices: hourlyPrices, remote_addrs: remoteAddrs },
+    value: { from, gigabytePrices, hourlyPrices, remoteAddrs },
   };
 }
 

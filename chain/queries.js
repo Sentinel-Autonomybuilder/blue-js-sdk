@@ -394,6 +394,27 @@ export async function hasActiveSubscription(address, planId, lcdUrl) {
   return { has: false };
 }
 
+/**
+ * Query allocations for a subscription (who has how many bytes).
+ * NOTE: Uses v2 endpoint because this specific v3 query hasn't been implemented yet
+ * (returns 501). The v2 path returns the same allocation data. Same situation as /plan/v3/plans/{id}.
+ *
+ * @param {string|number|bigint} subscriptionId
+ * @param {string} [lcdUrl]
+ * @returns {Promise<Array<{ id: string, address: string, grantedBytes: string, utilisedBytes: string }>>}
+ */
+export async function querySubscriptionAllocations(subscriptionId, lcdUrl) {
+  try {
+    const data = await lcdQuery(`/sentinel/subscription/v2/subscriptions/${subscriptionId}/allocations`, { lcdUrl });
+    return (data.allocations || []).map(a => ({
+      id: a.id,
+      address: a.address,
+      grantedBytes: a.granted_bytes || '0',
+      utilisedBytes: a.utilised_bytes || '0',
+    }));
+  } catch { return []; }
+}
+
 // ─── Plan Subscriber Helpers (v25b) ──────────────────────────────────────────
 
 /**

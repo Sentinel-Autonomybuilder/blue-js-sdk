@@ -440,10 +440,10 @@ export async function connectDirect(opts) {
       typeUrl: MSG_TYPES.START_SESSION,
       value: {
         from: account.address,
-        node_address: opts.nodeAddress,
+        nodeAddress: opts.nodeAddress,
         gigabytes: sessionGigabytes,
         hours: sessionHours,
-        max_price: { denom: 'udvpn', base_value: sessionMaxPrice.base_value, quote_value: sessionMaxPrice.quote_value },
+        maxPrice: { denom: 'udvpn', base_value: sessionMaxPrice.base_value, quote_value: sessionMaxPrice.quote_value },
       },
     };
 
@@ -477,10 +477,10 @@ export async function connectDirect(opts) {
       typeUrl: MSG_TYPES.START_SESSION,
       value: {
         from: account.address,
-        node_address: opts.nodeAddress,
+        nodeAddress: opts.nodeAddress,
         gigabytes: retryGigabytes,
         hours: retryHours,
-        max_price: { denom: 'udvpn', base_value: retryMaxPrice.base_value, quote_value: retryMaxPrice.quote_value },
+        maxPrice: { denom: 'udvpn', base_value: retryMaxPrice.base_value, quote_value: retryMaxPrice.quote_value },
       },
     };
     checkAborted(signal);

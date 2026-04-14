@@ -304,6 +304,18 @@ export {
   rpcQueryBalance,
 } from './chain/rpc.js';
 
+// ─── Subscription Sharing (plan operator → user onboarding) ────────────────
+
+export {
+  shareSubscription,
+  shareSubscriptionWithFeeGrant,
+  onboardPlanUser,
+} from './chain/broadcast.js';
+
+export {
+  querySubscriptionAllocations,
+} from './chain/queries.js';
+
 // ─── TypeScript Client (extends CosmJS SigningStargateClient) ───────────────
 
 export {

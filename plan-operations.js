@@ -123,11 +123,12 @@ export function encodeMsgUpdatePlanStatus({ from, id, status }) {
  * Link a leased node to a plan. Requires active lease for the node.
  * from: sentprov prefix (provider address)
  */
-export function encodeMsgLinkNode({ from, id, nodeAddress }) {
+export function encodeMsgLinkNode({ from, id, nodeAddress, node_address }) {
+  const addr = nodeAddress || node_address;
   return Uint8Array.from(Buffer.concat([
     protoString(1, from),
     protoUint64(2, id),
-    protoString(3, nodeAddress),
+    protoString(3, addr),
   ]));
 }
 
@@ -136,11 +137,12 @@ export function encodeMsgLinkNode({ from, id, nodeAddress }) {
  * Remove a node from a plan.
  * from: sentprov prefix (provider address)
  */
-export function encodeMsgUnlinkNode({ from, id, nodeAddress }) {
+export function encodeMsgUnlinkNode({ from, id, nodeAddress, node_address }) {
+  const addr = nodeAddress || node_address;
   return Uint8Array.from(Buffer.concat([
     protoString(1, from),
     protoUint64(2, id),
-    protoString(3, nodeAddress),
+    protoString(3, addr),
   ]));
 }
 
@@ -149,14 +151,16 @@ export function encodeMsgUnlinkNode({ from, id, nodeAddress }) {
  * Subscribes to a plan AND starts a session in one TX.
  * from: sent prefix (account address)
  */
-export function encodeMsgPlanStartSession({ from, id, denom = 'udvpn', renewalPricePolicy = 0, nodeAddress }) {
+export function encodeMsgPlanStartSession({ from, id, denom = 'udvpn', renewalPricePolicy, renewal_price_policy, nodeAddress, node_address }) {
+  const policy = renewalPricePolicy || renewal_price_policy || 0;
+  const addr = nodeAddress || node_address;
   const parts = [
     protoString(1, from),
     protoUint64(2, id),
     protoString(3, denom),
   ];
-  if (renewalPricePolicy) parts.push(protoInt64(4, renewalPricePolicy));
-  if (nodeAddress) parts.push(protoString(5, nodeAddress));
+  if (policy) parts.push(protoInt64(4, policy));
+  if (addr) parts.push(protoString(5, addr));
   return Uint8Array.from(Buffer.concat(parts));
 }
 
@@ -170,14 +174,17 @@ export function encodeMsgPlanStartSession({ from, id, denom = 'udvpn', renewalPr
  * CRITICAL: maxPrice must EXACTLY match the node's hourly_prices from LCD.
  * Any mismatch → "invalid price" error.
  */
-export function encodeMsgStartLease({ from, nodeAddress, hours, maxPrice, renewalPricePolicy = 0 }) {
+export function encodeMsgStartLease({ from, nodeAddress, node_address, hours, maxPrice, max_price, renewalPricePolicy, renewal_price_policy }) {
+  const addr = nodeAddress || node_address;
+  const price = maxPrice || max_price;
+  const policy = renewalPricePolicy || renewal_price_policy || 0;
   const parts = [
     protoString(1, from),
-    protoString(2, nodeAddress),
+    protoString(2, addr),
     protoInt64(3, hours),
   ];
-  if (maxPrice) parts.push(protoEmbedded(4, encodePrice(maxPrice)));
-  if (renewalPricePolicy) parts.push(protoInt64(5, renewalPricePolicy));
+  if (price) parts.push(protoEmbedded(4, encodePrice(price)));
+  if (policy) parts.push(protoInt64(5, policy));
   return Uint8Array.from(Buffer.concat(parts));
 }
 
