@@ -2,7 +2,7 @@
 
 JavaScript/TypeScript SDK for the [Sentinel](https://sentinel.co) decentralized VPN network. WireGuard + V2Ray tunnels, Cosmos blockchain, 900+ nodes. RPC queries, typed events, CosmJS compatible.
 
-**Also available:** [Blue C# SDK](https://github.com/Sentinel-Autonomybuilder/blue-csharp-sdk) | [Blue AI Connect](https://github.com/Sentinel-Autonomybuilder/blue-ai-connect) (zero-config wrapper for AI agents)
+**Also available:** [Blue C# SDK](https://github.com/Sentinel-Autonomybuilder/blue-csharp-sdk) | [Blue Agent Connect](https://github.com/Sentinel-Autonomybuilder/blue-agent-connect) (zero-config wrapper for AI agents)
 
 ## Platform Support
 
@@ -18,7 +18,7 @@ JavaScript/TypeScript SDK for the [Sentinel](https://sentinel.co) decentralized 
 
 ---
 
-> **For AI agents:** If you just want `connect()` with one function call, use [`blue-ai-connect`](https://www.npmjs.com/package/blue-ai-connect) instead.
+> **For AI agents:** If you just want `connect()` with one function call, use [`blue-agent-connect`](https://www.npmjs.com/package/blue-agent-connect) instead.
 
 ## Install
 
@@ -46,7 +46,7 @@ await disconnect();
 
 ## For AI Agents
 
-Use [sentinel-ai-connect](https://www.npmjs.com/package/sentinel-ai-connect) — a zero-config wrapper with one function call from zero to encrypted tunnel.
+Use [blue-agent-connect](https://www.npmjs.com/package/blue-agent-connect) — a zero-config wrapper with one function call from zero to encrypted tunnel.
 
 ## Features
 

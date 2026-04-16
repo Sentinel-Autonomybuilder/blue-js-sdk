@@ -119,7 +119,7 @@ A centralized VPN that promises not to log is one court order away from logging.
 These are not aspirations. This is working infrastructure:
 
 ```javascript
-import { connect, disconnect } from 'sentinel-ai-connect';
+import { connect, disconnect } from 'blue-agent-connect';
 
 // One function call. No account. No API key. No permission.
 const vpn = await connect({

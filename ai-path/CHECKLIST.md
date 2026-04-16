@@ -12,7 +12,7 @@ import {
   discoverNodes, getNodeInfo, getNetworkStats,
   estimateCost, PRICING, recommend,
   connect, disconnect, status, isVpnActive, verify, onEvent,
-} from './index.js'; // or 'sentinel-ai-connect' when published to npm
+} from './index.js'; // or 'blue-agent-connect' when published to npm
 ```
 
 Each checklist item has:
@@ -481,7 +481,7 @@ Run this as a single script to verify the entire pipeline works. This is the def
 import {
   setup, getEnvironment, getBalance, estimateCost, recommend,
   connect, disconnect, status, isVpnActive, verify,
-} from './index.js'; // or 'sentinel-ai-connect' when published to npm
+} from './index.js'; // or 'blue-agent-connect' when published to npm
 
 const results = {
   preflight: false,

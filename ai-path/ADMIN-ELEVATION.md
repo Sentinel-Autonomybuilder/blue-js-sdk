@@ -108,7 +108,7 @@ if (WG_AVAILABLE && IS_ADMIN) {
 
 The `getEnvironment()` function reports this:
 ```js
-import { getEnvironment } from 'sentinel-ai-connect';
+import { getEnvironment } from 'blue-agent-connect';
 const env = getEnvironment();
 // env.admin: true/false
 // env.capabilities: ['v2ray', 'wireguard'] or ['v2ray', 'wireguard-needs-admin'] or ['v2ray']

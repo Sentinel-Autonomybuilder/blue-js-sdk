@@ -22,7 +22,7 @@
 
 ---
 
-## B-3: Publish to npm as `sentinel-ai-connect` and `sentinel-dvpn-sdk`
+## B-3: Publish to npm as `blue-agent-connect` and `sentinel-dvpn-sdk`
 
 **Current:** Both packages exist only as local directories. All imports use relative paths. External projects must use `pathToFileURL()` hacks.
 **Proposed:** Publish both to npm with proper `package.json` exports map, `files` array, and `README.md`.

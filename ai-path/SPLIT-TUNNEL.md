@@ -49,7 +49,7 @@ Your agent process
 #### How to Use
 
 ```javascript
-import { connect, disconnect } from 'sentinel-ai-connect';
+import { connect, disconnect } from 'blue-agent-connect';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import axios from 'axios';
 
@@ -133,7 +133,7 @@ Your agent process
 #### How to Use
 
 ```javascript
-import { connect, disconnect } from 'sentinel-ai-connect';
+import { connect, disconnect } from 'blue-agent-connect';
 
 // Connect with specific IPs routed through VPN
 const vpn = await connect({
@@ -194,7 +194,7 @@ Split tunnel (V2Ray):
 For AI agents that need to process data in real-time while maintaining selective privacy:
 
 ```javascript
-import { connect, disconnect } from 'sentinel-ai-connect';
+import { connect, disconnect } from 'blue-agent-connect';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import axios from 'axios';
 

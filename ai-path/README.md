@@ -1,11 +1,11 @@
-# sentinel-ai-connect
+# blue-agent-connect
 
 The world's first decentralized VPN SDK designed for AI agents. Zero accounts, zero servers, zero centralized dependencies. Install the package, fund a wallet, and get private internet access through 900+ peer-to-peer nodes across 90+ countries in one function call.
 
 No API keys. No terms of service. No human approval required.
 
 ```
-AI Agent -> sentinel-ai-connect -> Sentinel SDK -> Blockchain TX -> P2P Node -> Encrypted Tunnel -> Internet
+AI Agent -> blue-agent-connect -> Sentinel SDK -> Blockchain TX -> P2P Node -> Encrypted Tunnel -> Internet
 ```
 
 ---
@@ -13,7 +13,7 @@ AI Agent -> sentinel-ai-connect -> Sentinel SDK -> Blockchain TX -> P2P Node -> 
 ## Quick Start (5 Lines)
 
 ```js
-import { connect, disconnect } from 'sentinel-ai-connect';
+import { connect, disconnect } from 'blue-agent-connect';
 
 const vpn = await connect({ mnemonic: process.env.MNEMONIC });
 console.log(`Connected via ${vpn.protocol} to ${vpn.nodeAddress} — IP: ${vpn.ip}`);
@@ -38,7 +38,7 @@ npx sentinel-ai disconnect     # Clean shutdown, end session on-chain
 ## Installation
 
 ```bash
-npm install sentinel-ai-connect
+npm install blue-agent-connect
 ```
 
 Post-install runs `setup.js` automatically to download V2Ray 5.2.1. If it fails silently (CI environments, restricted networks), run manually:
@@ -82,7 +82,7 @@ The SDK checks admin status BEFORE paying for a session. If you select a WireGua
 
 ## Why Decentralized VPN for AI
 
-| Traditional VPN | sentinel-ai-connect |
+| Traditional VPN | blue-agent-connect |
 |---|---|
 | API keys required | No keys, no accounts |
 | Rate limits | No rate limits |
@@ -133,7 +133,7 @@ The Sentinel network uses P2P tokens (chain denom: `udvpn`, where 1 P2P = 1,000,
 Integrate with the Osmosis SDK to auto-swap stablecoins to P2P tokens when balance is low. The wallet balance is queryable on-chain at any time:
 
 ```js
-import { getBalance } from 'sentinel-ai-connect';
+import { getBalance } from 'blue-agent-connect';
 
 const balance = await getBalance(process.env.MNEMONIC);
 console.log(`Balance: ${balance.p2p} (${balance.udvpn} udvpn) — funded: ${balance.funded}`);
@@ -332,7 +332,7 @@ Verifies dependencies (V2Ray binary, WireGuard, Node.js version) and tests chain
 Queries all online nodes from the Sentinel blockchain. Use `{ quick: true }` for fast chain-only data (no probing), or omit for enriched data with country, peers, and health scores.
 
 ```js
-import { discoverNodes } from 'sentinel-ai-connect';
+import { discoverNodes } from 'blue-agent-connect';
 const nodes = await discoverNodes({ quick: true });
 console.log(`${nodes.length} nodes found`);
 ```
@@ -344,7 +344,7 @@ console.log(`${nodes.length} nodes found`);
 The `connect()` function throws plain `Error` objects with human-readable messages. For programmatic error handling, access the full SDK error system:
 
 ```js
-import { connect } from 'sentinel-ai-connect';
+import { connect } from 'blue-agent-connect';
 
 try {
   await connect({ mnemonic });
@@ -446,7 +446,7 @@ events.on('sessionEnded', ({ txHash }) => {
 For long-running agents that need persistent VPN connectivity, use the SDK's auto-reconnect:
 
 ```js
-import { connect } from 'sentinel-ai-connect';
+import { connect } from 'blue-agent-connect';
 import { autoReconnect } from 'sentinel-dvpn-sdk';
 
 // Initial connection
@@ -486,7 +486,7 @@ monitor.stop();
 ## Architecture
 
 ```
-sentinel-ai-connect
+blue-agent-connect
 |
 +-- Sentinel JS SDK (sentinel-dvpn-sdk)
     |
@@ -543,7 +543,7 @@ sentinel-ai-connect
 ### As a library (embedded in your agent)
 
 ```js
-import { connect, disconnect } from 'sentinel-ai-connect';
+import { connect, disconnect } from 'blue-agent-connect';
 const vpn = await connect({ mnemonic });
 // Your agent's HTTP requests now route through VPN
 await disconnect();
@@ -589,7 +589,7 @@ MIT
 ## Links
 
 - **Sentinel Network:** https://sentinel.co
-- **SDK Repository:** https://github.com/sentinel-official/sentinel-ai-connect
+- **SDK Repository:** https://github.com/sentinel-official/blue-agent-connect
 - **Sentinel Protocol Docs:** https://docs.sentinel.co
 - **P2P Token (CoinGecko):** https://www.coingecko.com/en/coins/sentinel
 - **Osmosis DEX:** https://app.osmosis.zone (swap USDT/USDC/ATOM to P2P)

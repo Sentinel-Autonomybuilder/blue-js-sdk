@@ -82,7 +82,7 @@ All endpoints support automatic failover. If the primary fails, the SDK tries th
 ### Install
 
 ```bash
-npm install sentinel-ai-connect
+npm install blue-agent-connect
 ```
 
 ### Post-Install Setup
@@ -102,7 +102,7 @@ This does three things:
 ### Verify Setup Programmatically
 
 ```js
-import { setup } from 'sentinel-ai-connect';
+import { setup } from 'blue-agent-connect';
 
 const deps = await setup();
 console.log(deps);
@@ -130,7 +130,7 @@ On Windows, install WireGuard from: https://download.wireguard.com/windows-clien
 ### Creating a New Wallet
 
 ```js
-import { createWallet } from 'sentinel-ai-connect';
+import { createWallet } from 'blue-agent-connect';
 
 // Generate fresh wallet with random mnemonic
 const { mnemonic, address } = await createWallet();
@@ -144,7 +144,7 @@ console.log(`Mnemonic: ${mnemonic}`); // 12 words
 ### Importing an Existing Wallet
 
 ```js
-import { importWallet } from 'sentinel-ai-connect';
+import { importWallet } from 'blue-agent-connect';
 
 const { address } = await importWallet(process.env.MNEMONIC);
 console.log(`Address: ${address}`);
@@ -153,7 +153,7 @@ console.log(`Address: ${address}`);
 ### Checking Balance
 
 ```js
-import { getBalance } from 'sentinel-ai-connect';
+import { getBalance } from 'blue-agent-connect';
 
 const balance = await getBalance(process.env.MNEMONIC);
 
@@ -202,7 +202,7 @@ IDLE --> CONNECTING --> CONNECTED --> DISCONNECTING --> IDLE
 ### Minimal Connection
 
 ```js
-import { connect, disconnect, isVpnActive } from 'sentinel-ai-connect';
+import { connect, disconnect, isVpnActive } from 'blue-agent-connect';
 
 const vpn = await connect({ mnemonic: process.env.MNEMONIC });
 // vpn = { sessionId, protocol, nodeAddress, socksPort, socksAuth, dryRun, ip }
@@ -222,7 +222,7 @@ await disconnect();
 ### Connection with Progress Tracking
 
 ```js
-import { connect } from 'sentinel-ai-connect';
+import { connect } from 'blue-agent-connect';
 
 const vpn = await connect({
   mnemonic: process.env.MNEMONIC,
@@ -332,7 +332,7 @@ try {
 
 ### Cleanup Handlers
 
-The `sentinel-ai-connect` wrapper automatically registers cleanup handlers when you call `connect()`. If you use the underlying SDK directly, you must register them yourself:
+The `blue-agent-connect` wrapper automatically registers cleanup handlers when you call `connect()`. If you use the underlying SDK directly, you must register them yourself:
 
 ```js
 import { registerCleanupHandlers, connectAuto } from 'sentinel-dvpn-sdk';
@@ -353,7 +353,7 @@ const vpn = await quickConnect({ mnemonic });
 // cleanup handlers are registered automatically
 ```
 
-When using `sentinel-ai-connect`'s `connect()`, this is handled for you automatically.
+When using `blue-agent-connect`'s `connect()`, this is handled for you automatically.
 
 ---
 
@@ -377,7 +377,7 @@ SentinelError (base)
 For advanced error handling, import typed errors from the underlying SDK:
 
 ```js
-import { connect } from 'sentinel-ai-connect';
+import { connect } from 'blue-agent-connect';
 import {
   SentinelError,
   ValidationError,
@@ -562,7 +562,7 @@ Daily cost estimate:
 For fully autonomous agents, monitor balance and trigger swap when low:
 
 ```js
-import { getBalance } from 'sentinel-ai-connect';
+import { getBalance } from 'blue-agent-connect';
 
 async function ensureFunded(mnemonic, minUdvpn = 500000) {
   const balance = await getBalance(mnemonic);
@@ -623,7 +623,7 @@ Do not cache raw private keys in your own code. Let the SDK manage key lifecycle
 After connecting, verify that traffic actually routes through the tunnel:
 
 ```js
-import { connect } from 'sentinel-ai-connect';
+import { connect } from 'blue-agent-connect';
 import { verifyConnection } from 'sentinel-dvpn-sdk';
 
 const vpn = await connect({ mnemonic });
@@ -702,10 +702,10 @@ try {
 
 ### Pattern 1: Embedded Library
 
-The simplest pattern. Import `sentinel-ai-connect` directly in your agent.
+The simplest pattern. Import `blue-agent-connect` directly in your agent.
 
 ```js
-import { connect, disconnect, isVpnActive } from 'sentinel-ai-connect';
+import { connect, disconnect, isVpnActive } from 'blue-agent-connect';
 
 class MyAgent {
   async doWorkWithPrivacy() {
@@ -728,7 +728,7 @@ class MyAgent {
 For agents that need persistent VPN access, combine the simple API with SDK-level features:
 
 ```js
-import { connect, disconnect } from 'sentinel-ai-connect';
+import { connect, disconnect } from 'blue-agent-connect';
 import {
   autoReconnect,
   registerCleanupHandlers,
@@ -775,7 +775,7 @@ process.on('SIGTERM', async () => {
 Connect only when needed, disconnect when done. Minimizes cost.
 
 ```js
-import { connect, disconnect, isVpnActive } from 'sentinel-ai-connect';
+import { connect, disconnect, isVpnActive } from 'blue-agent-connect';
 
 async function withVpn(country, fn) {
   let retries = 3;
@@ -812,7 +812,7 @@ const result = await withVpn('Germany', async (vpn) => {
 Connect to different countries sequentially for geo-distributed operations:
 
 ```js
-import { connect, disconnect } from 'sentinel-ai-connect';
+import { connect, disconnect } from 'blue-agent-connect';
 
 const countries = ['Germany', 'Japan', 'Brazil', 'Australia', 'South Africa'];
 
@@ -839,7 +839,7 @@ for (const country of countries) {
 V2Ray creates a local SOCKS5 proxy. Route specific traffic through it:
 
 ```js
-import { connect, disconnect } from 'sentinel-ai-connect';
+import { connect, disconnect } from 'blue-agent-connect';
 import { SocksProxyAgent } from 'socks-proxy-agent';
 import axios from 'axios';
 
@@ -877,7 +877,7 @@ This mode requires three things from the operator:
 3. **Node address** -- a node linked to the operator's plan
 
 ```js
-import { connect, disconnect } from 'sentinel-ai-connect';
+import { connect, disconnect } from 'blue-agent-connect';
 
 // Agent has 0 P2P — operator covers gas via fee grant
 const vpn = await connect({
@@ -970,7 +970,7 @@ Plan mode subscribes to the plan AND starts a session in one flow. Use `subscrip
 A complete pattern for a fully autonomous AI agent that manages its own VPN lifecycle, monitors balance, and handles all error cases.
 
 ```js
-import { connect, disconnect, isVpnActive, createWallet, getBalance } from 'sentinel-ai-connect';
+import { connect, disconnect, isVpnActive, createWallet, getBalance } from 'blue-agent-connect';
 import {
   autoReconnect,
   registerCleanupHandlers,
@@ -1173,7 +1173,7 @@ WireGuard requires admin/root. Either:
 Fund the wallet with P2P tokens. Check current balance:
 
 ```js
-import { getBalance } from 'sentinel-ai-connect';
+import { getBalance } from 'blue-agent-connect';
 
 const balance = await getBalance(mnemonic);
 console.log(`${balance.p2p} — funded: ${balance.funded}`);
@@ -1185,7 +1185,7 @@ console.log(`Send P2P tokens to: ${balance.address}`);
 Call `disconnect()` before connecting again:
 
 ```js
-import { disconnect, isVpnActive, connect } from 'sentinel-ai-connect';
+import { disconnect, isVpnActive, connect } from 'blue-agent-connect';
 
 if (isVpnActive()) {
   await disconnect();

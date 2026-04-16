@@ -47,7 +47,7 @@ The SDK checks that all required binaries and permissions are available before a
 
 ### Code
 ```javascript
-import { setup, getEnvironment } from 'sentinel-ai-connect';
+import { setup, getEnvironment } from 'blue-agent-connect';
 
 // Quick synchronous check (no network calls)
 const env = getEnvironment();
@@ -110,7 +110,7 @@ Creates or imports a BIP39 mnemonic, derives a Cosmos HD wallet (path `m/44'/118
 
 ### Code
 ```javascript
-import { createWallet, importWallet } from 'sentinel-ai-connect';
+import { createWallet, importWallet } from 'blue-agent-connect';
 
 // Create new wallet
 const wallet = await createWallet();
@@ -154,7 +154,7 @@ Queries the Sentinel blockchain (LCD REST API) for the wallet's `udvpn` balance.
 
 ### Code
 ```javascript
-import { getBalance } from 'sentinel-ai-connect';
+import { getBalance } from 'blue-agent-connect';
 
 const bal = await getBalance('your twelve word mnemonic phrase...');
 console.log(bal);
@@ -205,7 +205,7 @@ Queries the Sentinel LCD for all active nodes (`status=1`), fetches up to 5,000 
 
 ### Code
 ```javascript
-import { discoverNodes, getNetworkStats } from 'sentinel-ai-connect';
+import { discoverNodes, getNetworkStats } from 'blue-agent-connect';
 
 // Quick mode — chain data only, no probing (fast, < 3 seconds)
 const nodes = await discoverNodes({ quick: true });
@@ -266,7 +266,7 @@ Calculates how much a connection will cost before paying. Uses the node's on-cha
 
 ### Code
 ```javascript
-import { estimateCost, recommend } from 'sentinel-ai-connect';
+import { estimateCost, recommend } from 'blue-agent-connect';
 
 // Estimate for 1 GB
 const cost = await estimateCost({ gigabytes: 1 });
@@ -527,7 +527,7 @@ The SDK confirms the tunnel is actually working by checking the public IP throug
 
 ### Code
 ```javascript
-import { verify, status } from 'sentinel-ai-connect';
+import { verify, status } from 'blue-agent-connect';
 
 const v = await verify();
 console.log(v);
@@ -664,7 +664,7 @@ Run this to verify everything works end-to-end in your environment:
 
 ```javascript
 import 'dotenv/config';
-import { setup, getBalance, connect, verify, disconnect } from 'sentinel-ai-connect';
+import { setup, getBalance, connect, verify, disconnect } from 'blue-agent-connect';
 
 async function test() {
   // Phase 1: Environment

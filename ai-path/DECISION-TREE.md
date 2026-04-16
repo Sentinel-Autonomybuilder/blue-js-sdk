@@ -16,7 +16,7 @@ Agent needs VPN
     │   └── NO → OUTPUT: { action: 'install-required', what: 'nodejs', url: 'https://nodejs.org', minVersion: '20.0.0' }
     │
     ├── Can run npm install?
-    │   ├── YES → npm install sentinel-ai-connect
+    │   ├── YES → npm install blue-agent-connect
     │   ├── NO (network restricted) → OUTPUT: { action: 'offline-install', instructions: 'download tarball from registry' }
     │   └── NO (permissions) → OUTPUT: { action: 'permission-required', what: 'npm global install or local project' }
     │
