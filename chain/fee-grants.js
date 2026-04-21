@@ -354,3 +354,199 @@ export function monitorFeeGrants(opts = {}) {
 
   return emitter;
 }
+
+// ─── Streaming Batch Grant (for SSE / progress UIs) ──────────────────────────
+
+/**
+ * Stream progress as we grant fee allowances to all plan subscribers in batches.
+ *
+ * Async generator. Yields events with `{ type, ...payload }`:
+ *   - status      { msg }                                  — human-readable status line
+ *   - batch_start { batch, total, count, addresses }       — about to broadcast a batch
+ *   - batch_ok    { batch, total, granted, totalGranted, txHash, elapsed }
+ *   - batch_error { batch, total, error, elapsed }
+ *   - done        { granted, skipped, total, errors? }
+ *   - error       { msg }
+ *
+ * The caller passes a `broadcast(msgs, memo)` function — any safe-broadcaster
+ * with the Plan Manager's mutex + sequence-retry semantics works. Consumer
+ * routes layer SSE (`res.write('data: ...\n\n')`) on top of these events.
+ *
+ * @param {number|string} planId
+ * @param {object} opts
+ * @param {string} opts.granterAddress - Plan owner paying fees
+ * @param {string} opts.lcdUrl - LCD endpoint
+ * @param {(msgs: Array, memo: string) => Promise<{code:number, rawLog?:string, transactionHash?:string}>} opts.broadcast
+ * @param {object} [opts.grantOpts] - { spendLimit, expiration } for BasicAllowance
+ * @param {number} [opts.batchSize=5] - Msgs per TX
+ * @param {() => boolean} [opts.isCancelled] - Return true to abort between batches
+ * @yields {{type: string, [key: string]: any}}
+ */
+export async function* streamGrantPlanSubscribers(planId, opts = {}) {
+  const {
+    granterAddress,
+    lcdUrl,
+    broadcast,
+    grantOpts = {},
+    batchSize = 5,
+    isCancelled = () => false,
+  } = opts;
+
+  if (!granterAddress) throw new ValidationError(ErrorCodes.INVALID_OPTIONS, 'granterAddress is required');
+  if (typeof broadcast !== 'function') throw new ValidationError(ErrorCodes.INVALID_OPTIONS, 'broadcast function is required');
+
+  try {
+    yield { type: 'status', msg: 'Fetching plan subscribers...' };
+    const { subscribers } = await queryPlanSubscribers(planId, { lcdUrl });
+
+    const now = new Date();
+    const activeSubs = subscribers.filter(s => {
+      if (s.status && s.status !== 'active') return false;
+      if (s.inactive_at && new Date(s.inactive_at) <= now) return false;
+      return true;
+    });
+    const uniqueAddrs = [...new Set(activeSubs.map(s => s.acc_address || s.address))]
+      .filter(a => a && a !== granterAddress && !isSameKey(a, granterAddress));
+
+    yield { type: 'status', msg: `Found ${activeSubs.length} active subscribers (${uniqueAddrs.length} unique, excl. self)` };
+
+    if (uniqueAddrs.length === 0) {
+      yield { type: 'done', granted: 0, skipped: 0, total: 0, msg: 'No active subscribers (excluding self)' };
+      return;
+    }
+
+    yield { type: 'status', msg: 'Checking existing grants...' };
+    const existing = await queryFeeGrantsIssued(lcdUrl || LCD_ENDPOINTS[0].url, granterAddress);
+    const existingGrantees = new Set(existing.map(g => g.grantee));
+    const needGrant = uniqueAddrs.filter(a => !existingGrantees.has(a));
+    const skipped = uniqueAddrs.length - needGrant.length;
+
+    yield { type: 'status', msg: `${existingGrantees.size} existing grants found. ${needGrant.length} need granting, ${skipped} already covered.` };
+
+    if (needGrant.length === 0) {
+      yield { type: 'done', granted: 0, skipped, total: 0, msg: 'All subscribers already have grants' };
+      return;
+    }
+
+    const totalBatches = Math.ceil(needGrant.length / batchSize);
+    let granted = 0;
+    const errors = [];
+
+    for (let i = 0; i < needGrant.length; i += batchSize) {
+      if (isCancelled()) break;
+
+      const batchNum = Math.floor(i / batchSize) + 1;
+      const batch = needGrant.slice(i, i + batchSize);
+      const shortAddrs = batch.map(a => a.slice(0, 12) + '...' + a.slice(-6)).join(', ');
+
+      yield { type: 'batch_start', batch: batchNum, total: totalBatches, count: batch.length, addresses: shortAddrs };
+
+      const msgs = batch.map(grantee => buildFeeGrantMsg(granterAddress, grantee, grantOpts));
+
+      const t0 = Date.now();
+      try {
+        const result = await broadcast(msgs, `Fee grant batch ${batchNum}/${totalBatches}`);
+        const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+
+        if (result.code !== 0) {
+          const errMsg = result.rawLog || `TX failed code=${result.code}`;
+          yield { type: 'batch_error', batch: batchNum, total: totalBatches, error: errMsg, elapsed };
+          errors.push(`Batch ${batchNum}: ${errMsg}`);
+        } else {
+          granted += batch.length;
+          yield {
+            type: 'batch_ok',
+            batch: batchNum,
+            total: totalBatches,
+            granted: batch.length,
+            totalGranted: granted,
+            txHash: result.transactionHash,
+            elapsed,
+          };
+        }
+      } catch (e) {
+        const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
+        yield { type: 'batch_error', batch: batchNum, total: totalBatches, error: e.message, elapsed };
+        errors.push(`Batch ${batchNum}: ${e.message}`);
+      }
+    }
+
+    yield {
+      type: 'done',
+      granted,
+      skipped,
+      total: needGrant.length,
+      errors: errors.length ? errors : undefined,
+    };
+  } catch (e) {
+    yield { type: 'error', msg: e.message };
+  }
+}
+
+// ─── Gas Cost Analytics ──────────────────────────────────────────────────────
+
+/**
+ * Compute how many udvpn the granter has spent on fee-granted transactions
+ * for a plan's subscribers. Iterates each subscriber, pulls their outgoing
+ * TXs via LCD, and sums fees where `fee.granter === granterAddress`.
+ *
+ * @param {number|string} planId
+ * @param {object} opts
+ * @param {string} opts.granterAddress - Address that paid the fees (plan owner)
+ * @param {string} opts.lcdUrl - LCD endpoint
+ * @param {number} [opts.txLimit=100] - Max TXs to inspect per subscriber
+ * @param {(info: {processed:number, total:number, address:string}) => void} [opts.onProgress]
+ * @returns {Promise<{ totalUdvpn: number, txCount: number, byAddress: Record<string, {udvpn:number, txCount:number}>, subscriberCount: number }>}
+ */
+export async function computeFeeGrantGasCosts(planId, opts = {}) {
+  const { granterAddress, lcdUrl, txLimit = 100, onProgress } = opts;
+  if (!granterAddress) throw new ValidationError(ErrorCodes.INVALID_OPTIONS, 'granterAddress is required');
+
+  const { subscribers } = await queryPlanSubscribers(planId, { lcdUrl });
+  const subscriberAddrs = [...new Set(subscribers.map(s => s.acc_address || s.address))]
+    .filter(a => a && a !== granterAddress);
+
+  if (subscriberAddrs.length === 0) {
+    return { totalUdvpn: 0, txCount: 0, byAddress: {}, subscriberCount: 0 };
+  }
+
+  let totalUdvpn = 0;
+  let txCount = 0;
+  const byAddress = {};
+
+  const base = lcdUrl || LCD_ENDPOINTS[0].url;
+  for (let idx = 0; idx < subscriberAddrs.length; idx++) {
+    const addr = subscriberAddrs[idx];
+    try {
+      const path =
+        `/cosmos/tx/v1beta1/txs?events=${encodeURIComponent("message.sender='" + addr + "'")}` +
+        `&pagination.limit=${txLimit}&order_by=2`;
+      const txData = await lcdQuery(path, { lcdUrl: base });
+      const rawTxs = txData.txs || [];
+
+      let addrGas = 0;
+      let addrTxCount = 0;
+
+      for (const tx of rawTxs) {
+        const fee = tx?.auth_info?.fee;
+        if (fee?.granter === granterAddress) {
+          const udvpnFee = (fee.amount || []).find(f => f.denom === 'udvpn');
+          if (udvpnFee) {
+            addrGas += parseInt(udvpnFee.amount, 10);
+            addrTxCount++;
+          }
+        }
+      }
+
+      if (addrTxCount > 0) {
+        byAddress[addr] = { udvpn: addrGas, txCount: addrTxCount };
+        totalUdvpn += addrGas;
+        txCount += addrTxCount;
+      }
+    } catch { /* skip this subscriber on LCD failure */ }
+
+    if (onProgress) onProgress({ processed: idx + 1, total: subscriberAddrs.length, address: addr });
+  }
+
+  return { totalUdvpn, txCount, byAddress, subscriberCount: subscriberAddrs.length };
+}

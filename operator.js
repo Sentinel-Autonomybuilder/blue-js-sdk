@@ -77,6 +77,8 @@ export {
   grantPlanSubscribers,
   renewExpiringGrants,
   monitorFeeGrants,
+  streamGrantPlanSubscribers,
+  computeFeeGrantGasCosts,
 } from './cosmjs-setup.js';
 
 // ─── Authz ──────────────────────────────────────────────────────────────────

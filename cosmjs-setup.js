@@ -87,6 +87,8 @@ import {
   getExpiringGrants as _getExpiringGrants,
   renewExpiringGrants as _renewExpiringGrants,
   monitorFeeGrants as _monitorFeeGrants,
+  streamGrantPlanSubscribers as _streamGrantPlanSubscribers,
+  computeFeeGrantGasCosts as _computeFeeGrantGasCosts,
 } from './chain/fee-grants.js';
 
 // ─── Input Validation Helpers ────────────────────────────────────────────────
@@ -1004,6 +1006,22 @@ export async function renewExpiringGrants(lcdUrl, granterAddress, withinDays = 7
  */
 export function monitorFeeGrants(opts = {}) {
   return _monitorFeeGrants(opts);
+}
+
+/**
+ * Stream progress as we grant fee allowances to all plan subscribers in batches.
+ * Async generator. See chain/fee-grants.js for event shapes.
+ */
+export function streamGrantPlanSubscribers(planId, opts = {}) {
+  return _streamGrantPlanSubscribers(planId, opts);
+}
+
+/**
+ * Sum udvpn fees the granter has paid on behalf of a plan's subscribers.
+ * Iterates subscribers, pulls TX history, filters on fee.granter.
+ */
+export async function computeFeeGrantGasCosts(planId, opts = {}) {
+  return _computeFeeGrantGasCosts(planId, opts);
 }
 
 // ─── Query Helpers (v25c) ────────────────────────────────────────────────────
