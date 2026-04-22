@@ -36,7 +36,7 @@ export { recommend } from './recommend.js';
 
 // ─── Phase 6-7: Connect, Verify, Monitor ─────────────────────────────────────
 
-export { connect, disconnect, status, isVpnActive, verify, verifySplitTunnel, onEvent } from './connect.js';
+export { connect, disconnect, disconnectAndEndSession, status, isVpnActive, verify, verifySplitTunnel, onEvent } from './connect.js';
 
 // ─── Error Handling ─────────────────────────────────────────────────────────
 

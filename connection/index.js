@@ -32,6 +32,8 @@ export {
 export {
   disconnect,
   disconnectState,
+  disconnectAndEndSession,
+  disconnectStateAndEndSession,
   registerCleanupHandlers,
   recoverSession,
 } from './disconnect.js';

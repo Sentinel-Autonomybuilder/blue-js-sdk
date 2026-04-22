@@ -487,9 +487,15 @@ export async function getBalance(client, address) {
  * Returns session ID (BigInt) or null. Use this to avoid double-paying.
  *
  * Note: Sessions have a nested base_session object containing the actual data.
+ *
+ * @param {string} lcdUrl - LCD endpoint URL
+ * @param {string} walletAddr - sent1... wallet address
+ * @param {string} nodeAddr - sentnode1... node address
+ * @param {object} [opts] - Optional. Pass `{ onStaleDuplicate: (BigInt) => void }` to
+ *   receive fire-and-forget cancellation callbacks for stale duplicate sessions.
  */
-export async function findExistingSession(lcdUrl, walletAddr, nodeAddr) {
-  return _findExistingSession(lcdUrl, walletAddr, nodeAddr);
+export async function findExistingSession(lcdUrl, walletAddr, nodeAddr, opts) {
+  return _findExistingSession(lcdUrl, walletAddr, nodeAddr, opts);
 }
 
 /**

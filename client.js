@@ -28,6 +28,7 @@ import { EventEmitter } from 'events';
 import {
   connectDirect, connectViaPlan, connectAuto, queryOnlineNodes,
   disconnect as sdkDisconnect, disconnectState,
+  disconnectAndEndSession as sdkDisconnectAndEndSession, disconnectStateAndEndSession,
   isConnected as sdkIsConnected, getStatus as sdkGetStatus,
   registerCleanupHandlers, setSystemProxy, clearSystemProxy,
   events as sdkEvents, ConnectionState,
@@ -125,10 +126,25 @@ export class SentinelClient extends EventEmitter {
   }
 
   /**
-   * Disconnect current VPN tunnel.
+   * Soft disconnect — tear down the tunnel, leave the on-chain session active.
+   *
+   * A subsequent connect() to the SAME node reuses the session (no new payment).
+   * Use for pause / temporary disconnect / network-change recovery.
+   * To settle the session and reclaim the deposit, use disconnectAndEndSession().
    */
   async disconnect() {
     await disconnectState(this._state);
+    this._connection = null;
+  }
+
+  /**
+   * Hard disconnect — tear down the tunnel AND broadcast MsgCancelSession on chain.
+   *
+   * Settles the session after the ~2h window and refunds the unused deposit.
+   * Use when the user is done with this node (switching permanently or wants refund).
+   */
+  async disconnectAndEndSession() {
+    await disconnectStateAndEndSession(this._state);
     this._connection = null;
   }
 

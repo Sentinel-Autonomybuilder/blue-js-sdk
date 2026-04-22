@@ -22,6 +22,7 @@ import {
   connectViaSubscription,
   connectViaPlan,
   disconnect as sdkDisconnect,
+  disconnectAndEndSession as sdkDisconnectAndEndSession,
   isConnected,
   getStatus,
   registerCleanupHandlers,
@@ -794,11 +795,48 @@ export async function connect(opts = {}) {
   }
 }
 
-// ─── disconnect() ────────────────────────────────────────────────────────────
+// ─── disconnect() / disconnectAndEndSession() ─────────────────────────────────
+//
+// TWO DISCONNECT PATHS — choose based on user intent:
+//
+// disconnect()              — SOFT. Tears down tunnel, leaves session on chain (status=1).
+//                             Next connect() to the same node reuses the session — no new payment.
+//                             Use for: pause, network change, close app temporarily.
+//
+// disconnectAndEndSession() — HARD. Tears down tunnel AND broadcasts MsgCancelSession.
+//                             Session settles after ~2h, unused deposit is refunded.
+//                             Use for: user is done, switching nodes, wants deposit back.
 
 /**
- * Disconnect from VPN. Tears down tunnel, cleans up system state.
- * Returns session cost and remaining balance for agent accounting.
+ * Build the shared disconnect result object.
+ * @param {object|null} prevResult
+ * @returns {object}
+ * @private
+ */
+function _buildDisconnectResult(prevResult) {
+  const sessionId = prevResult?.sessionId || null;
+  const balance = prevResult?.balance?.after || null;
+  return {
+    disconnected: true,
+    sessionId,
+    balance,
+    timing: {
+      connectedMs: prevResult?._connectedAt
+        ? Date.now() - prevResult._connectedAt
+        : null,
+      setupMs: prevResult?.timing?.totalMs || null,
+    },
+  };
+}
+
+/**
+ * Soft disconnect — tear down tunnel, leave the on-chain session active.
+ *
+ * A subsequent connect() to the SAME node will reuse the session (no new payment,
+ * no new MsgStartSession TX, remaining bandwidth preserved).
+ *
+ * Use when: pausing, network changed, or closing the app temporarily.
+ * To settle the session and reclaim the unused deposit, use disconnectAndEndSession().
  *
  * @returns {Promise<{
  *   disconnected: boolean,
@@ -811,35 +849,49 @@ export async function disconnect() {
   const prevResult = _lastConnectResult;
   const sessionId = prevResult?.sessionId || null;
 
-  agentLog(1, 1, 'DISCONNECT', `Ending session${sessionId ? ` ${sessionId}` : ''}...`);
+  agentLog(1, 1, 'DISCONNECT', `Soft disconnect${sessionId ? ` (session ${sessionId} preserved on chain)` : ''}...`);
 
   try {
     await sdkDisconnect();
+    const output = _buildDisconnectResult(prevResult);
+    agentLog(1, 1, 'DISCONNECT', `Done. Session ${sessionId || 'unknown'} preserved on chain for reuse.`);
+    _lastConnectResult = null;
+    _connectTimings = {};
+    return output;
+  } catch (err) {
+    _lastConnectResult = null;
+    _connectTimings = {};
+    throw new Error(`Disconnect failed: ${err.message}`);
+  }
+}
 
-    // Check remaining balance after disconnect
-    let balance = null;
-    if (prevResult?.walletAddress) {
-      try {
-        // Re-derive from stored result isn't possible without mnemonic.
-        // Listen for the session-end event from SDK instead.
-        balance = prevResult.balance?.after || null;
-      } catch { /* non-critical */ }
-    }
+/**
+ * Hard disconnect — tear down tunnel AND broadcast MsgCancelSession on chain.
+ *
+ * The session settles after the ~2h inactive_pending window. The node refunds
+ * the unused portion of the bandwidth deposit (for peer-to-peer sessions).
+ * For plan-based sessions, this stops metering against the plan allocation.
+ *
+ * Use when: user is done with this node (switching nodes permanently,
+ * ending the trip, or wants the deposit back).
+ *
+ * @returns {Promise<{
+ *   disconnected: boolean,
+ *   sessionId: string|null,
+ *   balance: string|null,
+ *   timing: { connectedMs: number|null },
+ * }>}
+ */
+export async function disconnectAndEndSession() {
+  const prevResult = _lastConnectResult;
+  const sessionId = prevResult?.sessionId || null;
 
-    const output = {
-      disconnected: true,
-      sessionId,
-      balance,
-      timing: {
-        connectedMs: prevResult?._connectedAt
-          ? Date.now() - prevResult._connectedAt
-          : null,
-        setupMs: prevResult?.timing?.totalMs || null,
-      },
-    };
+  agentLog(1, 1, 'DISCONNECT', `Hard disconnect — ending session${sessionId ? ` ${sessionId}` : ''} on chain...`);
 
-    agentLog(1, 1, 'DISCONNECT', `Done. Session ${sessionId || 'unknown'} ended.`);
-
+  try {
+    await sdkDisconnectAndEndSession();
+    const output = _buildDisconnectResult(prevResult);
+    agentLog(1, 1, 'DISCONNECT', `Done. Session ${sessionId || 'unknown'} cancelled on chain (deposit settles ~2h).`);
     _lastConnectResult = null;
     _connectTimings = {};
     return output;

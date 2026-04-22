@@ -82,8 +82,22 @@ export async function getBalance(client, address) {
  * Find an existing active session for a wallet+node pair.
  * Returns session ID (BigInt) or null. Use this to avoid double-paying.
  * RPC-first with LCD fallback.
+ *
+ * Dedup: if multiple active sessions exist for the same node_address (stale
+ * duplicates from crashes or multi-client wallets), the one with the HIGHEST
+ * session ID is returned. All lower-ID duplicates are passed to `onStaleDuplicate`
+ * (if provided) for fire-and-forget cancellation.
+ *
+ * @param {string} lcdUrl - LCD endpoint URL
+ * @param {string} walletAddr - sent1... wallet address
+ * @param {string} nodeAddr - sentnode1... node address
+ * @param {object} [opts]
+ * @param {function} [opts.onStaleDuplicate] - Called with (BigInt sessionId) for each
+ *   stale lower-ID duplicate session. Caller is responsible for fire-and-forget
+ *   MsgCancelSession. Keeps chain/queries.js dependency-free of signing/broadcast logic.
+ * @returns {Promise<BigInt|null>}
  */
-export async function findExistingSession(lcdUrl, walletAddr, nodeAddr) {
+export async function findExistingSession(lcdUrl, walletAddr, nodeAddr, opts = {}) {
   let sessions;
 
   // RPC-first: returns decoded, flat session objects
@@ -103,6 +117,8 @@ export async function findExistingSession(lcdUrl, walletAddr, nodeAddr) {
     });
   }
 
+  // Collect all non-exhausted active sessions for this node
+  const matching = [];
   for (const s of sessions) {
     if ((s.node_address || s.node) !== nodeAddr) continue;
     // RPC returns status as number (1=active), LCD as string
@@ -112,9 +128,22 @@ export async function findExistingSession(lcdUrl, walletAddr, nodeAddr) {
     if (acct && acct !== walletAddr) continue;
     const maxBytes = parseInt(s.max_bytes || '0');
     const used = parseInt(s.download_bytes || '0') + parseInt(s.upload_bytes || '0');
-    if (maxBytes === 0 || used < maxBytes) return BigInt(s.id);
+    if (maxBytes === 0 || used < maxBytes) matching.push(BigInt(s.id));
   }
-  return null;
+
+  if (matching.length === 0) return null;
+
+  // Sort descending — highest session ID is the freshest (most recent MsgStartSession)
+  matching.sort((a, b) => (a > b ? -1 : a < b ? 1 : 0));
+
+  // Dedup: cancel stale lower-ID duplicates (fire-and-forget via caller callback)
+  if (matching.length > 1 && typeof opts.onStaleDuplicate === 'function') {
+    for (let i = 1; i < matching.length; i++) {
+      opts.onStaleDuplicate(matching[i]);
+    }
+  }
+
+  return matching[0];
 }
 
 /**

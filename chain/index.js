@@ -359,9 +359,15 @@ export function txResponse(result) {
  * Find an existing active session for a wallet+node pair.
  * Returns session ID (BigInt) or null. Use this to avoid double-paying.
  * Delegates to chain/queries.js RPC-first implementation.
+ *
+ * @param {string} lcdUrl - LCD endpoint URL
+ * @param {string} walletAddr - sent1... wallet address
+ * @param {string} nodeAddr - sentnode1... node address
+ * @param {object} [opts] - Optional. Pass `{ onStaleDuplicate: (BigInt) => void }` to
+ *   receive fire-and-forget cancellation callbacks for stale duplicate sessions.
  */
-export async function findExistingSession(lcdUrl, walletAddr, nodeAddr) {
-  return _rpcFindExistingSession(lcdUrl, walletAddr, nodeAddr);
+export async function findExistingSession(lcdUrl, walletAddr, nodeAddr, opts) {
+  return _rpcFindExistingSession(lcdUrl, walletAddr, nodeAddr, opts);
 }
 
 /**

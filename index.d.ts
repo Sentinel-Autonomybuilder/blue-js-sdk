@@ -520,8 +520,8 @@ export function getNetworkOverview(lcdUrl?: string): Promise<NetworkOverview>;
 
 /** Get current P2P price in USD */
 export function getDvpnPrice(): Promise<number>;
-/** Find existing active session for wallet+node pair */
-export function findExistingSession(lcdUrl: string, walletAddr: string, nodeAddr: string): Promise<bigint | null>;
+/** Find existing active session for wallet+node pair. Deduplicates stale sessions via onStaleDuplicate callback. */
+export function findExistingSession(lcdUrl: string, walletAddr: string, nodeAddr: string, opts?: { onStaleDuplicate?: (sessionId: bigint) => void }): Promise<bigint | null>;
 /** Fetch active nodes from LCD with pagination */
 export function fetchActiveNodes(lcdUrl: string, limit?: number, maxPages?: number): Promise<any[]>;
 /** Discover plan IDs by probing LCD */

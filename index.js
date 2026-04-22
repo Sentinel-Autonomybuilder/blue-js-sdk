@@ -27,6 +27,9 @@ export {
   enrichNodes,
   buildNodeIndex,
   disconnect,
+  disconnectAndEndSession,
+  disconnectState,
+  disconnectStateAndEndSession,
   isConnected,
   getStatus,
   registerCleanupHandlers,
@@ -52,7 +55,6 @@ export {
   disableDnsLeakPrevention,
   events,
   ConnectionState,
-  disconnectState,
   tryFastReconnect,
 } from './node-connect.js';
 

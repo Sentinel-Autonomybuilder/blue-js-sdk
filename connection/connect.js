@@ -9,7 +9,7 @@ import {
   events, _defaultState, progress, checkAborted,
   warnIfNoCleanup, cachedCreateWallet, _recordMetric,
   broadcastWithInactiveRetry, getConnectLock, setConnectLock,
-  getAbortConnect, setAbortConnect,
+  getAbortConnect, setAbortConnect, _endSessionOnChain,
 } from './state.js';
 
 import {
@@ -31,7 +31,7 @@ import {
 import { createNodeHttpsAgent } from '../tls-trust.js';
 import { disconnectWireGuard } from '../wireguard.js';
 
-import { disconnectState } from './disconnect.js';
+import { disconnectState, disconnectStateAndEndSession } from './disconnect.js';
 import { queryOnlineNodes } from './discovery.js';
 import {
   recordNodeFailure, isCircuitOpen, configureCircuitBreaker,
@@ -79,8 +79,10 @@ async function connectInternal(opts, paymentStrategy, retryStrategy, state = _de
         { nodeAddress: state.connection?.nodeAddress });
     }
     const prev = state.connection;
-    await disconnectState(state);
-    if (opts.log || defaultLog) (opts.log || defaultLog)(`[connect] Disconnected from ${prev?.nodeAddress || 'previous node'}`);
+    // Hard disconnect: user is actively connecting to a different node,
+    // so the old session should be settled and the deposit refunded.
+    await disconnectStateAndEndSession(state);
+    if (opts.log || defaultLog) (opts.log || defaultLog)(`[connect] Ended session on ${prev?.nodeAddress || 'previous node'} — connecting to new node`);
   }
 
   const onProgress = opts.onProgress || null;
@@ -397,7 +399,17 @@ export async function connectDirect(opts) {
     if (!forceNewSession) {
       progress(onProgress, logFn, 'session', 'Checking for existing session...');
       checkAborted(signal);
-      sessionId = await findExistingSession(lcd, account.address, opts.nodeAddress);
+      sessionId = await findExistingSession(lcd, account.address, opts.nodeAddress, {
+        // Dedup: if multiple active sessions exist for this node (stale duplicates from
+        // crashes or multi-client wallets), keep the highest-ID one. Silently cancel stale
+        // lower-ID sessions before MsgStartSession — mirrors C# SessionManager dedup pattern.
+        onStaleDuplicate: (staleId) => {
+          logFn?.(`[connect] Cancelling stale duplicate session ${staleId} on ${opts.nodeAddress}...`);
+          _endSessionOnChain(staleId, opts.mnemonic).catch(e => {
+            logFn?.(`[connect] Failed to cancel stale session ${staleId}: ${e.message}`);
+          });
+        },
+      });
       if (sessionId && isSessionPoisoned(String(sessionId))) {
         progress(onProgress, logFn, 'session', `Session ${sessionId} previously failed — skipping`);
         sessionId = null;

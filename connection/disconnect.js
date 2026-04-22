@@ -28,13 +28,35 @@ import { queryNode, privKeyFromMnemonic } from '../cosmjs-setup.js';
 import { createNodeHttpsAgent } from '../tls-trust.js';
 
 // ─── Disconnect ──────────────────────────────────────────────────────────────
+//
+// TWO DISCONNECT PATHS — CHOOSE INTENT EXPLICITLY.
+//
+// Soft: disconnect() / disconnectState(state)
+//   - Tears down the local tunnel (WireGuard/V2Ray) and cleans up system state.
+//   - Leaves the on-chain session in status=1 (active).
+//   - Next connectDirect() to the SAME node reuses the session via
+//     findExistingSession — no new MsgStartSession TX, no new payment, bandwidth preserved.
+//   - Use when: user is pausing, network changed, closing the app temporarily.
+//
+// Hard: disconnectAndEndSession() / disconnectStateAndEndSession(state)
+//   - Tears down the tunnel AND broadcasts MsgCancelSession on chain.
+//   - Session moves status=1 → settling → refund after ~2h settlement window.
+//   - Use when: user is done with this node, switching nodes permanently,
+//     or wants the bandwidth deposit back.
+//
+// Internal: _disconnectInternal(state, { endSession })
+//   - Caller MUST pass endSession explicitly as true or false.
+//   - No default — forces intentional choice at every callsite.
 
 /**
- * Clean up all active tunnels and system proxy.
- * ALWAYS call this on exit — a stale WireGuard tunnel will kill your internet.
+ * Internal disconnect implementation. Caller must explicitly pass endSession.
+ * @param {object} state - ConnectionState instance
+ * @param {{ endSession: boolean }} opts
+ *   endSession: true  → broadcast MsgCancelSession (hard disconnect)
+ *   endSession: false → preserve on-chain session for reuse (soft disconnect)
+ * @private
  */
-/** Disconnect a specific state instance (internal). */
-export async function disconnectState(state) {
+async function _disconnectInternal(state, { endSession }) {
   // v30: Signal any running connectAuto() retry loop to abort, and release the
   // connection lock so the user can reconnect after disconnect completes.
   setAbortConnect(true);
@@ -65,11 +87,18 @@ export async function disconnectState(state) {
       try { disableDnsLeakPrevention(); } catch (e) { console.warn('[sentinel-sdk] DNS restore warning:', e.message); }
     }
 
-    // End session on chain (best-effort, fire-and-forget — never blocks disconnect)
-    if (prev?.sessionId && state._mnemonic) {
-      _endSessionOnChain(prev.sessionId, state._mnemonic).catch(e => {
-        console.warn(`[sentinel-sdk] Failed to end session ${prev.sessionId} on chain: ${e.message}`);
-      });
+    if (endSession) {
+      // Hard disconnect: broadcast MsgCancelSession — session settles and refunds deposit.
+      if (prev?.sessionId && state._mnemonic) {
+        _endSessionOnChain(prev.sessionId, state._mnemonic).catch(e => {
+          console.warn(`[sentinel-sdk] Failed to end session ${prev.sessionId} on chain: ${e.message}`);
+        });
+      }
+    } else {
+      // Soft disconnect: leave session on chain in status=1 for reuse.
+      if (prev?.sessionId) {
+        console.log(`[sentinel-sdk] Session ${prev.sessionId} preserved on chain (status=1) for future reuse — no MsgCancelSession broadcast.`);
+      }
     }
   } finally {
     // ALWAYS clear connection state — even if teardown threw
@@ -82,8 +111,55 @@ export async function disconnectState(state) {
   }
 }
 
+/**
+ * Soft disconnect — tear down the local tunnel, leave the on-chain session active.
+ *
+ * A subsequent connectDirect() to the SAME node will reuse the session via
+ * findExistingSession — no new MsgStartSession TX, no new payment, remaining
+ * bandwidth is preserved.
+ *
+ * Use when: user is pausing, network changed, or closing the app temporarily.
+ * To settle the session on-chain and reclaim the unused deposit, use
+ * disconnectAndEndSession() instead.
+ *
+ * @param {object} [state] - ConnectionState instance (defaults to _defaultState)
+ */
+export async function disconnectState(state) {
+  return _disconnectInternal(state, { endSession: false });
+}
+
+/**
+ * Soft disconnect (default state) — tear down the tunnel, leave on-chain session active.
+ *
+ * @see disconnectState
+ */
 export async function disconnect() {
-  return disconnectState(_defaultState);
+  return _disconnectInternal(_defaultState, { endSession: false });
+}
+
+/**
+ * Hard disconnect — tear down the tunnel AND broadcast MsgCancelSession on chain.
+ *
+ * The session settles after the ~2h inactive_pending window. The node refunds
+ * the unused portion of the bandwidth deposit (for peer-to-peer sessions).
+ * For plan-based sessions, this stops metering against the plan allocation.
+ *
+ * Use when: user is done with this node (switching nodes permanently, ending
+ * their session, or wants the deposit back).
+ *
+ * @param {object} [state] - ConnectionState instance (defaults to _defaultState)
+ */
+export async function disconnectStateAndEndSession(state) {
+  return _disconnectInternal(state, { endSession: true });
+}
+
+/**
+ * Hard disconnect (default state) — tear down the tunnel AND broadcast MsgCancelSession.
+ *
+ * @see disconnectStateAndEndSession
+ */
+export async function disconnectAndEndSession() {
+  return _disconnectInternal(_defaultState, { endSession: true });
 }
 
 // ─── Cleanup Registration ───────────────────────────────────────────────────
