@@ -1216,41 +1216,21 @@ events.on('sessionEndFailed', ({ error }) => { });
 
 ## Phase 12: Disconnect
 
-### Two Disconnect Methods
-
-The SDK provides two explicit methods with different on-chain behavior. Always choose by intent.
+### SDK Disconnect
 
 ```javascript
-import { disconnect, disconnectAndEndSession } from 'sentinel-dvpn-sdk';
-
-// Soft — tear down tunnel, leave on-chain session active (status=1).
-// Next connect() to the SAME node reuses the session without re-paying.
+import { disconnect } from 'sentinel-dvpn-sdk';
 await disconnect();
-
-// Hard — tear down tunnel AND broadcast MsgCancelSession.
-// Session moves status=1 → status=2 (inactive_pending) → status=3 (inactive) after ~2h.
-// Unused bandwidth deposit is refunded after the settlement window.
-await disconnectAndEndSession();
 ```
 
-Or use the cleanup function returned by `connectDirect()` (hard disconnect):
+Or use the cleanup function returned by `connectDirect()`:
 ```javascript
 const conn = await connectDirect({ ... });
 // ... use VPN ...
-await conn.cleanup(); // calls disconnectAndEndSession()
+await conn.cleanup();
 ```
 
-**When to use each:**
-
-| Situation | Call |
-|-----------|------|
-| User pausing / will reconnect to same node | `disconnect()` |
-| Network change, auto-reconnect expected | `disconnect()` |
-| User done with this node | `disconnectAndEndSession()` |
-| Switching nodes / changing country | `disconnectAndEndSession()` |
-| Process `SIGTERM` / app shutdown | `disconnectAndEndSession()` |
-
-### Soft Disconnect Sequence (`disconnect()`)
+### Disconnect Sequence
 
 1. **Signal abort:** Set `_abortConnect = true` to stop any running `connectAuto()` retry loop
 2. **Release connection lock:** Set `_connectLock = false` so user can reconnect
@@ -1258,18 +1238,12 @@ await conn.cleanup(); // calls disconnectAndEndSession()
 4. **Clear system proxy:** Restore previous proxy settings (Windows registry / macOS / Linux)
 5. **Kill V2Ray:** `process.kill()` on the V2Ray child process
 6. **Uninstall WireGuard:** `wireguard.exe /uninstalltunnelservice wgsent0`
-7. *(No chain TX — session preserved at status=1 for future reuse)*
+7. **End session on chain:** `MsgCancelSessionRequest` (fire-and-forget, best-effort). If `state._feeGranter` is set (operator-provisioned mode), uses `broadcastWithFeeGrant` so agent with 0 P2P can still end the session on-chain.
 8. **Zero mnemonic:** `state._mnemonic = null`
 9. **Clear connection state:** `state.connection = null`
 10. **Clear persisted state:** Remove crash recovery files
 11. **Flush DNS cache:** Clear stale speed test DNS entries
 12. **Emit event:** `events.emit('disconnected', { ... })`
-
-### Hard Disconnect Sequence (`disconnectAndEndSession()`)
-
-Same as soft disconnect, with one additional step inserted between steps 6 and 8:
-
-7. **End session on chain:** `MsgCancelSessionRequest` (fire-and-forget, best-effort). If `state._feeGranter` is set (operator-provisioned mode), uses `broadcastWithFeeGrant` so an agent with 0 P2P can still end the session on-chain.
 
 ### End Session On-Chain
 
@@ -1282,22 +1256,7 @@ Message type: `/sentinel.session.v3.MsgCancelSessionRequest`
 
 Gas: Fixed 200,000 gas, 20,000 udvpn fee.
 
-This is fire-and-forget (never blocks disconnect). If the TX fails, it logs a warning. Unended sessions eventually expire on-chain, but ending them promptly is good practice and enables refund.
-
-### Session Reuse After Soft Disconnect
-
-After `disconnect()`, the on-chain session remains at status=1. The next `connect()` to the **same node** will call `findExistingSession()` and skip `MsgStartSession` entirely if:
-
-1. An on-chain status=1 session exists for that node.
-2. Cached WireGuard credentials exist on disk.
-3. The session is not poisoned (no failed handshake on record).
-4. The session is not bandwidth-exhausted.
-
-If any condition fails, `connect()` falls back to a fresh session automatically.
-
-### Plan-Based Sessions
-
-`connectViaPlan()` and `connectViaSubscription()` sessions have no per-session deposit. Hard disconnect stops metering against the plan allocation but does not refund anything. Prefer `disconnectAndEndSession()` for predictable plan accounting.
+This is fire-and-forget (never blocks disconnect). If the TX fails, it logs a warning. Unended sessions eventually expire on-chain, but ending them promptly is good practice.
 
 ### CRITICAL: Session Tracker (Chain Doesn't Store Payment Mode)
 

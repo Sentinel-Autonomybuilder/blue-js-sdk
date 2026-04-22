@@ -292,50 +292,21 @@ const vpn = await connect({
 
 ### Disconnect
 
-Two explicit methods with different on-chain behavior. Never guess which to call.
-
-```js
-// Soft disconnect — tear down tunnel, leave on-chain session active (status=1)
-// Next connect() to the SAME node reuses the session — no new payment.
-await disconnect();
-
-// Hard disconnect — tear down tunnel AND broadcast MsgCancelSession on-chain.
-// Session settles after ~2h inactive_pending window; unused deposit refunded.
-await disconnectAndEndSession();
-```
-
-```js
-import { disconnect, disconnectAndEndSession } from 'sentinel-dvpn-sdk';
-// or
-import { disconnect, disconnectAndEndSession } from 'blue-agent-connect';
-```
-
-**Which to call:**
-
-| Situation | Method |
-|-----------|--------|
-| User pausing, will reconnect soon | `disconnect()` |
-| Network change / auto-reconnect to same node | `disconnect()` |
-| User done with this node | `disconnectAndEndSession()` |
-| Switching to a different node | `disconnectAndEndSession()` |
-| Process SIGTERM / app shutdown | `disconnectAndEndSession()` |
-| User selects "Change country" | `disconnectAndEndSession()` |
-
-**Steps performed by `disconnect()` (soft):**
+`disconnect()` performs these steps in order:
 
 1. Kill V2Ray process (if V2Ray) or remove WireGuard adapter (if WireGuard)
 2. Clear system SOCKS proxy (if set)
 3. Disable kill switch (if enabled)
-4. Clear local state files
-5. *(No chain TX — session stays status=1)*
+4. End session on-chain (fire-and-forget -- does not block on TX confirmation)
+5. Clear local state files
 
-**Additional step performed by `disconnectAndEndSession()` (hard):**
+```js
+await disconnect();
+// Connection is now fully torn down.
+// On-chain session end is fire-and-forget -- it may take a few seconds.
+```
 
-- Broadcasts `MsgCancelSessionRequest` on-chain (fire-and-forget, does not block). Session moves status=1 → status=2 (inactive_pending) → status=3 (inactive) after ~2h settlement window. Unused deposit refunded.
-
-**Fee-granted disconnect:** When the connection was established with `feeGranter`, the SDK remembers the granter address and uses it for the `MsgCancelSessionRequest` TX in `disconnectAndEndSession()`. If the fee grant has expired or been exhausted by disconnect time, the session ends naturally when the subscription allocation expires. No tokens are lost. The soft `disconnect()` path never broadcasts a TX and never requires the fee grant.
-
-**Plan-based sessions:** `connectViaPlan()` and `connectViaSubscription()` sessions have no per-session deposit. `disconnectAndEndSession()` stops metering against the plan allocation but does not refund anything.
+**Fee-granted disconnect:** When the connection was established with `feeGranter`, the SDK remembers the granter address and uses it for the `MsgCancelSessionRequest` TX on disconnect. If the fee grant has expired or been exhausted by disconnect time, the session ends naturally when the subscription allocation expires. No tokens are lost.
 
 ### Session Recovery
 
