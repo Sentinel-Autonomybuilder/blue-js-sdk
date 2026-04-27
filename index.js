@@ -544,6 +544,12 @@ export {
   getCacheStats,
 } from './audit.js';
 
+// ─── Operator: Lease Batch Utilities ────────────────────────────────────────
+
+export {
+  autoLeaseNode,
+  batchLeaseNodes,
+} from './operator/auto-lease.js';
 // ─── Operator: Batch Fee Grant Revoke ───────────────────────────────────────
 
 export {
