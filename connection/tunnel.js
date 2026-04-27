@@ -560,12 +560,28 @@ async function setupV2Ray({ remoteUrl, serverHost, sessionId, privKey, v2rayExeP
           }
         });
       }
-      // Delete config after V2Ray reads it (contains UUID credentials)
-      setTimeout(() => { try { unlinkSync(cfgPath); } catch {} }, 2000);
+      // Delete config after V2Ray reads it (contains UUID credentials).
+      // Race-safe approach: delete the moment we know V2Ray has loaded config
+      // (port is up OR process exited), and a deadline-bound unref'd safety net.
+      // The previous fixed 2s timer raced the loop iterating to the next outbound,
+      // which overwrites cfgPath — the stale timer would then delete the NEW config.
+      let cfgDeleted = false;
+      const deleteCfg = () => {
+        if (cfgDeleted) return;
+        cfgDeleted = true;
+        try { unlinkSync(cfgPath); } catch {} // best-effort: V2Ray may have file open on Windows
+      };
+      proc.once('exit', deleteCfg);
+      const cfgSafetyTimer = setTimeout(deleteCfg, 5000);
+      cfgSafetyTimer.unref();
 
       // Wait for SOCKS5 port to accept connections instead of fixed sleep.
       // V2Ray binding is async — fixed 6s sleep causes false failures on slow starts.
       const ready = await waitForPort(socksPort, timeouts.v2rayReady);
+      // Once the SOCKS port accepts connections, V2Ray has fully parsed the config —
+      // safe to delete (Windows: file is still open by V2Ray, unlink will return EBUSY,
+      // try/catch swallows; falls back to exit-handler or process orphan-cleanup).
+      if (ready) deleteCfg();
       if (!ready || proc.exitCode !== null) {
         progress(onProgress, logFn, 'tunnel', `  ${ob.tag}: v2ray ${proc.exitCode !== null ? `exited (code ${proc.exitCode})` : 'SOCKS5 port not ready'}, skipping`);
         proc.kill();
