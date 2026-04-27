@@ -15,7 +15,7 @@ import {
 import {
   createClient, privKeyFromMnemonic, broadcastWithFeeGrant,
   extractId, findExistingSession, getBalance, MSG_TYPES, queryNode,
-  isMnemonicValid, filterNodes,
+  isMnemonicValid, filterNodes, checkFeeGrant,
 } from '../cosmjs-setup.js';
 import { nodeStatusV3, waitForPort } from '../v3protocol.js';
 import {
@@ -45,6 +45,40 @@ let defaultLog = console.log;
 
 // ─── Shared Validation ───────────────────────────────────────────────────────
 
+/**
+ * Validate a chain endpoint URL. Enforces https:// to prevent attackers from
+ * coercing the SDK into broadcasting signed TXs over cleartext HTTP — a passive
+ * network observer on http://attacker.example/rpc would see the full TX body
+ * and could correlate it to the user's wallet address. Localhost is exempted
+ * for local-node development.
+ *
+ * @param {*} url - Value to validate (allowed: undefined/null, or string)
+ * @param {string} fieldName - 'rpcUrl' or 'lcdUrl', used in error messages
+ */
+function validateChainUrl(url, fieldName) {
+  if (url == null) return;
+  if (typeof url !== 'string') {
+    throw new ValidationError(ErrorCodes.INVALID_URL, `${fieldName} must be a string URL`, { value: url });
+  }
+  let parsed;
+  try { parsed = new URL(url); }
+  catch { throw new ValidationError(ErrorCodes.INVALID_URL, `${fieldName} is not a valid URL`, { value: url }); }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new ValidationError(ErrorCodes.INVALID_URL, `${fieldName} must use http:// or https:// (got ${parsed.protocol})`, { value: url });
+  }
+  const isLocalhost = parsed.hostname === 'localhost'
+    || parsed.hostname === '127.0.0.1'
+    || parsed.hostname === '::1'
+    || parsed.hostname === '[::1]';
+  if (parsed.protocol === 'http:' && !isLocalhost) {
+    throw new ValidationError(
+      ErrorCodes.INVALID_URL,
+      `${fieldName} must use https:// for non-localhost endpoints. Cleartext HTTP leaks signed TXs and queries to network observers (got ${url}).`,
+      { value: url },
+    );
+  }
+}
+
 function validateConnectOpts(opts, fnName) {
   if (!opts || typeof opts !== 'object') throw new ValidationError(ErrorCodes.INVALID_OPTIONS, `${fnName}() requires an options object`);
   if (typeof opts.mnemonic !== 'string') {
@@ -60,8 +94,8 @@ function validateConnectOpts(opts, fnName) {
   if (typeof opts.nodeAddress !== 'string' || !/^sentnode1[a-z0-9]{38}$/.test(opts.nodeAddress)) {
     throw new ValidationError(ErrorCodes.INVALID_NODE_ADDRESS, 'nodeAddress must be a valid sentnode1... bech32 address (47 characters)', { value: opts.nodeAddress });
   }
-  if (opts.rpcUrl != null && typeof opts.rpcUrl !== 'string') throw new ValidationError(ErrorCodes.INVALID_URL, 'rpcUrl must be a string URL', { value: opts.rpcUrl });
-  if (opts.lcdUrl != null && typeof opts.lcdUrl !== 'string') throw new ValidationError(ErrorCodes.INVALID_URL, 'lcdUrl must be a string URL', { value: opts.lcdUrl });
+  validateChainUrl(opts.rpcUrl, 'rpcUrl');
+  validateChainUrl(opts.lcdUrl, 'lcdUrl');
 }
 
 // ─── Shared Connect Flow (eliminates connectDirect/connectViaPlan duplication) ─
@@ -711,6 +745,22 @@ export async function connectViaPlan(opts) {
     // Fee grant: the app passes the plan owner's address as feeGranter.
     const feeGranter = opts.feeGranter || null;
 
+    // Opt-in precheck: verify the grant exists and is not expired before the TX.
+    // Builders who prefer fail-fast over silent user-pay fallback set requireFeeGrant.
+    if (feeGranter && opts.requireFeeGrant === true) {
+      const status = await checkFeeGrant(lcdUrl, feeGranter, account.address);
+      if (!status.exists) {
+        throw new ChainError(ErrorCodes.FEE_GRANT_MISSING_AT_START,
+          `Required fee grant missing from ${feeGranter} to ${account.address}`,
+          { granter: feeGranter, grantee: account.address });
+      }
+      if (status.expired) {
+        throw new ChainError(ErrorCodes.FEE_GRANT_EXPIRED,
+          `Required fee grant expired at ${status.expiresAt?.toISOString()}`,
+          { granter: feeGranter, grantee: account.address, expiresAt: status.expiresAt });
+      }
+    }
+
     progress(null, opts.log || defaultLog, 'session', `Subscribing to plan ${opts.planId} + starting session${feeGranter ? ' (fee granted)' : ''}...`);
 
     let result;
@@ -718,8 +768,10 @@ export async function connectViaPlan(opts) {
       try {
         result = await broadcastWithFeeGrant(client, account.address, [msg], feeGranter);
       } catch (feeErr) {
-        // Fee grant TX failed — fall back to user-paid
-        progress(null, opts.log || defaultLog, 'session', 'Fee grant failed, paying gas from wallet...');
+        if (opts.requireFeeGrant === true) throw feeErr;
+        // Fee grant TX failed — fall back to user-paid (default behavior)
+        const reason = feeErr?.message ? `: ${feeErr.message}` : '';
+        progress(null, opts.log || defaultLog, 'session', `Fee grant failed${reason}, paying gas from wallet...`);
         result = await broadcastWithInactiveRetry(client, account.address, [msg], opts.log || defaultLog, opts.onProgress);
       }
     } else {
@@ -780,7 +832,7 @@ export async function connectViaSubscription(opts) {
   try {
 
   async function subPayment(ctx) {
-    const { client, account, logFn, onProgress, signal } = ctx;
+    const { client, account, lcd: lcdUrl, logFn, onProgress, signal } = ctx;
     const msg = {
       typeUrl: MSG_TYPES.SUB_START_SESSION,
       value: {
@@ -794,6 +846,22 @@ export async function connectViaSubscription(opts) {
 
     // Fee grant: operator pays gas for the agent (e.g., x402 managed plan flow)
     const feeGranter = opts.feeGranter || null;
+
+    // Opt-in precheck: verify the grant exists and is not expired before the TX.
+    if (feeGranter && opts.requireFeeGrant === true) {
+      const status = await checkFeeGrant(lcdUrl, feeGranter, account.address);
+      if (!status.exists) {
+        throw new ChainError(ErrorCodes.FEE_GRANT_MISSING_AT_START,
+          `Required fee grant missing from ${feeGranter} to ${account.address}`,
+          { granter: feeGranter, grantee: account.address });
+      }
+      if (status.expired) {
+        throw new ChainError(ErrorCodes.FEE_GRANT_EXPIRED,
+          `Required fee grant expired at ${status.expiresAt?.toISOString()}`,
+          { granter: feeGranter, grantee: account.address, expiresAt: status.expiresAt });
+      }
+    }
+
     progress(null, opts.log || defaultLog, 'session', `Starting session via subscription ${opts.subscriptionId}${feeGranter ? ' (fee granted)' : ''}...`);
 
     let result;
@@ -801,8 +869,10 @@ export async function connectViaSubscription(opts) {
       try {
         result = await broadcastWithFeeGrant(client, account.address, [msg], feeGranter);
       } catch (feeErr) {
-        // Fee grant TX failed — fall back to user-paid
-        progress(null, opts.log || defaultLog, 'session', 'Fee grant failed, paying gas from wallet...');
+        if (opts.requireFeeGrant === true) throw feeErr;
+        // Fee grant TX failed — fall back to user-paid (default behavior)
+        const reason = feeErr?.message ? `: ${feeErr.message}` : '';
+        progress(null, opts.log || defaultLog, 'session', `Fee grant failed${reason}, paying gas from wallet...`);
         result = await broadcastWithInactiveRetry(client, account.address, [msg], opts.log || defaultLog, opts.onProgress);
       }
     } else {

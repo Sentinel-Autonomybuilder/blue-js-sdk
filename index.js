@@ -95,6 +95,7 @@ export {
   buildRevokeFeeGrantMsg,
   queryFeeGrants,
   queryFeeGrant,
+  checkFeeGrant,
   // Authz
   buildAuthzGrantMsg,
   buildAuthzRevokeMsg,
@@ -107,6 +108,8 @@ export {
   // Plan Subscriber Helpers (v25b)
   queryPlanSubscribers,
   getPlanStats,
+  queryPlanDetails,
+  isActiveStatus,
   // Fee Grant Workflow (v25b)
   grantPlanSubscribers,
   queryFeeGrantsIssued,
@@ -547,6 +550,13 @@ export {
   autoLeaseNode,
   batchLeaseNodes,
 } from './operator/auto-lease.js';
+// ─── Plan Ownership Pre-Flight ──────────────────────────────────────────────
+
+export {
+  assertPlanOwnership,
+  PlanOwnershipError,
+  walletToProviderAddr,
+} from './operator/plan-ownership.js';
 // ─── Auth Utilities (Keplr) ─────────────────────────────────────────
 
 export {

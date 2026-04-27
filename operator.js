@@ -141,3 +141,10 @@ export {
   autoLeaseNode,
   batchLeaseNodes,
 } from './operator/auto-lease.js';
+// ─── Plan Ownership Pre-Flight ──────────────────────────────────────────────
+
+export {
+  assertPlanOwnership,
+  PlanOwnershipError,
+  walletToProviderAddr,
+} from './operator/plan-ownership.js';
