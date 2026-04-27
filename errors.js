@@ -71,6 +71,82 @@ export class SecurityError extends SentinelError {
   }
 }
 
+// ─── Audit Errors ────────────────────────────────────────────────────────────
+//
+// Errors raised by audit / network-test pipelines. They carry a `.diag`
+// blob — the structured snapshot of what was happening when the failure
+// fired (handshake transcript, timings, transport state, etc.). UI surfaces
+// render that into the per-row failure log so an operator can copy the
+// full context.
+//
+// Audit errors share a hardcoded code per subclass — the subclass IS the
+// taxonomy. Callers don't have to remember code strings; they catch by
+// type.
+
+/**
+ * Base class for audit / network-test failures.
+ * Adds a `.diag` field on top of SentinelError's `.details`.
+ *
+ * @param {string} message
+ * @param {string} code
+ * @param {object} [diag] - Diagnostic snapshot (handshake bytes, timings, etc.)
+ */
+export class AuditError extends SentinelError {
+  constructor(message, code, diag = {}) {
+    super(code, message, diag);
+    this.name = 'AuditError';
+    this.diag = diag;
+  }
+}
+
+/** V3 handshake to the node failed (bad transport, timeout, malformed reply). */
+export class HandshakeError extends AuditError {
+  constructor(message, diag = {}) {
+    super(message, 'HANDSHAKE_FAILED', diag);
+    this.name = 'HandshakeError';
+  }
+}
+
+/** Payment-side failure during audit (subscription sub-allocation, fee-grant, etc.). */
+export class PaymentError extends AuditError {
+  constructor(message, diag = {}) {
+    super(message, 'PAYMENT_FAILED', diag);
+    this.name = 'PaymentError';
+  }
+}
+
+/** A pre-existing VPN process / WireGuard interface is interfering with the test. */
+export class VpnInterferenceError extends AuditError {
+  constructor(message, diag = {}) {
+    super(message, 'VPN_INTERFERENCE', diag);
+    this.name = 'VpnInterferenceError';
+  }
+}
+
+/** Node failed to respond at all to status / status-update probe. */
+export class NodeUnreachableError extends AuditError {
+  constructor(message, diag = {}) {
+    super(message, 'NODE_UNREACHABLE', diag);
+    this.name = 'NodeUnreachableError';
+  }
+}
+
+/** Wallet doesn't have enough udvpn for the audit run (mid-pipeline detection). */
+export class InsufficientBalanceError extends AuditError {
+  constructor(message, diag = {}) {
+    super(message, 'INSUFFICIENT_BALANCE', diag);
+    this.name = 'InsufficientBalanceError';
+  }
+}
+
+/** Speed test phase failed (Cloudflare unreachable, all fallback hosts dead, etc.). */
+export class SpeedTestError extends AuditError {
+  constructor(message, diag = {}) {
+    super(message, 'SPEEDTEST_FAILED', diag);
+    this.name = 'SpeedTestError';
+  }
+}
+
 /** Error code constants — use these for switch/if checks instead of string parsing */
 export const ErrorCodes = {
   // Validation
@@ -141,6 +217,13 @@ export const ErrorCodes = {
   NODE_MISCONFIGURED: 'NODE_MISCONFIGURED',
   NODE_DB_CORRUPT: 'NODE_DB_CORRUPT',
   NODE_RPC_BROKEN: 'NODE_RPC_BROKEN',
+
+  // Audit / network-test pipeline (used by AuditError subclasses)
+  HANDSHAKE_FAILED: 'HANDSHAKE_FAILED',
+  PAYMENT_FAILED: 'PAYMENT_FAILED',
+  VPN_INTERFERENCE: 'VPN_INTERFERENCE',
+  NODE_UNREACHABLE: 'NODE_UNREACHABLE',
+  SPEEDTEST_FAILED: 'SPEEDTEST_FAILED',
 };
 
 // ─── Error Severity Classification ───────────────────────────────────────────
@@ -201,6 +284,14 @@ export const ERROR_SEVERITY = {
   // Infrastructure — check system state
   [ErrorCodes.TLS_CERT_CHANGED]: 'infrastructure',
   [ErrorCodes.V2RAY_NOT_FOUND]: 'infrastructure',
+
+  // Audit pipeline — most are retryable (a single audit attempt failing
+  // does not mean the node is permanently broken)
+  [ErrorCodes.HANDSHAKE_FAILED]: 'retryable',
+  [ErrorCodes.PAYMENT_FAILED]: 'retryable',
+  [ErrorCodes.NODE_UNREACHABLE]: 'retryable',
+  [ErrorCodes.SPEEDTEST_FAILED]: 'retryable',
+  [ErrorCodes.VPN_INTERFERENCE]: 'infrastructure',
 };
 
 /** Check if an error should be retried. */

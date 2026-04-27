@@ -59,6 +59,57 @@ export async function createRpcQueryClientWithFallback() {
   throw new Error(`All RPC endpoints failed: ${errors.map(e => `${e.url}: ${e.error}`).join('; ')}`);
 }
 
+// ─── Failover with Per-Attempt Timeout ────────────────────────────────────
+
+/**
+ * Race a promise against a timeout. The timer is unref()'d so it won't pin
+ * the event loop if the connect succeeds first.
+ */
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => {
+      const t = setTimeout(() => rej(new Error(`${label} timed out after ${ms}ms`)), ms);
+      if (typeof t?.unref === 'function') t.unref();
+    }),
+  ]);
+}
+
+/**
+ * Try RPC endpoints in order with a per-attempt timeout. Returns the first
+ * endpoint that connects AND passes a status health-check within the timeout.
+ *
+ * Fixes: Tendermint37Client.connect() never times out on a hung TCP handshake,
+ * leaving startup stalled for 30+ seconds against a Cloudflare-fronted RPC.
+ *
+ * @param {string[]} endpoints - RPC URLs to try in order
+ * @param {object} [opts]
+ * @param {number} [opts.perAttemptTimeoutMs=4000] - Timeout per endpoint (connect + status)
+ * @param {boolean} [opts.healthCheck=true] - If true, also races status() within timeout
+ * @returns {Promise<{ tmClient: Tendermint37Client, url: string }>}
+ */
+export async function connectFailoverWithTimeout(endpoints, { perAttemptTimeoutMs = 4000, healthCheck = true } = {}) {
+  const errors = [];
+  for (const url of endpoints) {
+    try {
+      const tmClient = await withTimeout(
+        Tendermint37Client.connect(url),
+        perAttemptTimeoutMs,
+        `${url} connect`,
+      );
+      if (healthCheck) {
+        await withTimeout(tmClient.status(), perAttemptTimeoutMs, `${url} status`);
+      }
+      return { tmClient, url };
+    } catch (err) {
+      errors.push({ url, msg: err.message });
+    }
+  }
+  const e = new Error(`All RPC endpoints failed (timeout: ${perAttemptTimeoutMs}ms)`);
+  e.attempts = errors;
+  throw e;
+}
+
 /**
  * Disconnect and clear cached RPC client.
  */

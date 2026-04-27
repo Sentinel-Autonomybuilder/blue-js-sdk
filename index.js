@@ -190,6 +190,9 @@ export {
   flushSpeedTestDnsCache,
   compareSpeedTests,
   SPEEDTEST_DEFAULTS,
+  checkGoogleDirect,
+  checkGoogleViaSocks5,
+  resolveGoogleIp,
 } from './speedtest.js';
 
 // ─── Plan & Provider Management ─────────────────────────────────────────────
@@ -299,6 +302,7 @@ export {
 export {
   createRpcQueryClient,
   createRpcQueryClientWithFallback,
+  connectFailoverWithTimeout,
   disconnectRpc,
   rpcQueryNodes,
   rpcQueryNode,
@@ -325,6 +329,7 @@ export {
   shareSubscription,
   shareSubscriptionWithFeeGrant,
   onboardPlanUser,
+  withBroadcastQueue,
 } from './chain/broadcast.js';
 
 export {
@@ -415,6 +420,13 @@ export {
   ChainError,
   TunnelError,
   SecurityError,
+  AuditError,
+  HandshakeError,
+  PaymentError,
+  VpnInterferenceError,
+  NodeUnreachableError,
+  InsufficientBalanceError,
+  SpeedTestError,
   ErrorCodes,
   ERROR_SEVERITY,
   isRetryable,
@@ -433,7 +445,7 @@ export {
 
 // ─── Session Manager ─────────────────────────────────────────────────────────
 
-export { SessionManager } from './session-manager.js';
+export { SessionManager, extractSessionMap } from './session-manager.js';
 
 // ─── Batch Session Operations ────────────────────────────────────────────────
 
@@ -499,11 +511,21 @@ export {
   estimateSessionPrice,
   buildNodeDisplay,
   groupNodesByCountry,
+  CONTINENT_BY_CODE,
+  CONTINENT_NAMES,
+  countryToContinent,
   HOUR_OPTIONS,
   GB_OPTIONS,
   formatUptime,
   computeSessionAllocation,
 } from './app-helpers.js';
+
+// ─── Auth Utilities (ADR-36, Keplr) ─────────────────────────────────────────
+
+export {
+  sortedJsonStringify,
+  verifyAdr36Signature,
+} from './auth/adr36.js';
 
 // ─── Instantiable Client Class ───────────────────────────────────────────────
 
@@ -521,3 +543,10 @@ export {
   reorderOutbounds,
   getCacheStats,
 } from './audit.js';
+
+// ─── Auth Utilities (Keplr) ─────────────────────────────────────────
+
+export {
+  buildKeplrSignDoc,
+  broadcastSignedKeplrTx,
+} from './auth/keplr-signdoc.js';
