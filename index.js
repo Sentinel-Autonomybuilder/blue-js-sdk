@@ -576,3 +576,14 @@ export {
   buildKeplrSignDoc,
   broadcastSignedKeplrTx,
 } from './auth/keplr-signdoc.js';
+
+// --- Auth Utilities (Privy embedded wallets) ---
+
+export {
+  PrivyCosmosSigner,
+  PrivyRawSignDirectSigner,
+  privyCosmosSignerFromMnemonic,
+  privyCosmosSignerFromRawSign,
+  createPrivyCosmosSigner,
+  deriveCosmosPubkeyFromMnemonic,
+} from './auth/privy-cosmos-signer.js';
