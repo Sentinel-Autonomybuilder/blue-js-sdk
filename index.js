@@ -518,3 +518,11 @@ export {
   reorderOutbounds,
   getCacheStats,
 } from './audit.js';
+
+// ─── Plan Ownership Pre-Flight ──────────────────────────────────────────────
+
+export {
+  assertPlanOwnership,
+  PlanOwnershipError,
+  walletToProviderAddr,
+} from './operator/plan-ownership.js';

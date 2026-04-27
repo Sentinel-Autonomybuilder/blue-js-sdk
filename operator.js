@@ -134,3 +134,11 @@ export {
   encodeMsgUpdateSubscription,
   encodeMsgUpdateSession,
 } from './v3protocol.js';
+
+// ─── Plan Ownership Pre-Flight ──────────────────────────────────────────────
+
+export {
+  assertPlanOwnership,
+  PlanOwnershipError,
+  walletToProviderAddr,
+} from './operator/plan-ownership.js';
