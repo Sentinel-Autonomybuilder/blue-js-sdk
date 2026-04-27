@@ -139,6 +139,8 @@ export {
   querySessions,
   querySubscription,
   hasActiveSubscription,
+  isActiveStatus,
+  queryPlanDetails,
   // v26c: Display helpers
   formatBytes,
   parseChainDuration,

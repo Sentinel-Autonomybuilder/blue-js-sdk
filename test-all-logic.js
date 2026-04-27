@@ -29,12 +29,14 @@ t('formatUptime 0', sdk.formatUptime(0) === '0s');
 
 // ═══ ADDRESS CONVERSION (6) ═══
 console.log('═══ ADDRESS CONVERSION ═══');
-t('shortAddress truncates', sdk.shortAddress('sent1example9pqrse8q4m6lz8alxqv5hkx3fkxe0q').includes('...'));
+// Valid sent1 address derived from BIP39 test mnemonic ("abandon abandon...about")
+const ADDR = 'sent19rl4cm2hmr8afy4kldpxz3fka4jguq0a8mmym6';
+t('shortAddress truncates', sdk.shortAddress(ADDR).includes('...'));
 t('shortAddress short passthrough', sdk.shortAddress('sent1abc') === 'sent1abc');
-t('sentToSentprov', sdk.sentToSentprov('sent1example9pqrse8q4m6lz8alxqv5hkx3fkxe0q').startsWith('sentprov'));
-t('sentToSentnode', sdk.sentToSentnode('sent1example9pqrse8q4m6lz8alxqv5hkx3fkxe0q').startsWith('sentnode'));
-t('sentprovToSent', sdk.sentprovToSent(sdk.sentToSentprov('sent1example9pqrse8q4m6lz8alxqv5hkx3fkxe0q')).startsWith('sent1'));
-t('isSameKey cross-prefix', sdk.isSameKey('sent1example9pqrse8q4m6lz8alxqv5hkx3fkxe0q', sdk.sentToSentprov('sent1example9pqrse8q4m6lz8alxqv5hkx3fkxe0q')));
+t('sentToSentprov', sdk.sentToSentprov(ADDR).startsWith('sentprov'));
+t('sentToSentnode', sdk.sentToSentnode(ADDR).startsWith('sentnode'));
+t('sentprovToSent', sdk.sentprovToSent(sdk.sentToSentprov(ADDR)).startsWith('sent1'));
+t('isSameKey cross-prefix', sdk.isSameKey(ADDR, sdk.sentToSentprov(ADDR)));
 
 // ═══ VALIDATION (7) ═══
 console.log('═══ VALIDATION ═══');
@@ -78,7 +80,7 @@ t('no duplicate DNS', new Set(sdk.resolveDnsServers().split(', ')).size === sdk.
 
 // ═══ ERROR SYSTEM (20) ═══
 console.log('═══ ERROR SYSTEM ═══');
-t('33 error codes', Object.values(sdk.ErrorCodes).length === 33);
+t('42 error codes', Object.values(sdk.ErrorCodes).length === 42);
 t('all have messages', Object.values(sdk.ErrorCodes).every(c => sdk.userMessage(c) !== 'An unexpected error occurred.'));
 t('unknown default', sdk.userMessage('FAKE') === 'An unexpected error occurred.');
 t('INSUFFICIENT fatal', sdk.ERROR_SEVERITY[sdk.ErrorCodes.INSUFFICIENT_BALANCE] === 'fatal');

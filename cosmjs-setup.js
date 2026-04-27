@@ -1148,6 +1148,53 @@ export async function hasActiveSubscription(address, planId, lcdUrl) {
   return _hasActiveSubscription(address, planId, lcdUrl);
 }
 
+/**
+ * Check if a status value represents an active record.
+ * Handles numeric (1), string numeric ("1"), and named ("STATUS_ACTIVE") forms
+ * returned by different chain endpoints.
+ * @param {number|string|undefined|null} status
+ * @returns {boolean}
+ */
+export function isActiveStatus(status) {
+  if (status === 1 || status === '1' || status === 'STATUS_ACTIVE' || status === 'active') return true;
+  return false;
+}
+
+/**
+ * Fetch a plan's details by ID. RPC-first (ABCI), LCD fallback.
+ * @param {number|string} planId
+ * @param {object} [opts]
+ * @param {string} [opts.lcdUrl]
+ * @param {object} [opts.rpcClient] - Pre-built RPC query client (skips LCD if provided)
+ * @returns {Promise<object|null>} Plan object, or null if not found.
+ */
+export async function queryPlanDetails(planId, opts = {}) {
+  const { rpcQueryPlan } = await import('./chain/rpc.js');
+  const { createRpcQueryClientWithFallback } = await import('./chain/rpc.js');
+  const { DEFAULT_LCD, RPC_ENDPOINTS } = await import('./defaults.js');
+
+  // RPC-first
+  const rpcClient = opts.rpcClient ?? await createRpcQueryClientWithFallback(RPC_ENDPOINTS).catch(() => null);
+  if (rpcClient) {
+    try {
+      const plan = await rpcQueryPlan(rpcClient, Number(planId));
+      if (plan) return plan;
+    } catch (_) {
+      // fall through to LCD
+    }
+  }
+
+  // LCD fallback (known to return 501 on most endpoints)
+  const { lcdQuery: _lcdQ } = await import('./chain/lcd.js');
+  const base = opts.lcdUrl || DEFAULT_LCD;
+  try {
+    const res = await _lcdQ(`/sentinel/plan/v3/plans/${planId}`, { base });
+    return res?.plan ?? null;
+  } catch (_) {
+    return null;
+  }
+}
+
 // ─── v26c: Display Helpers ───────────────────────────────────────────────────
 
 /**

@@ -123,6 +123,23 @@ export const ErrorCodes = {
 
   // Chain timing
   CHAIN_LAG: 'CHAIN_LAG',
+
+  // Fee grant
+  FEE_GRANT_MISSING_AT_START: 'FEE_GRANT_MISSING_AT_START',
+  FEE_GRANT_EXPIRED: 'FEE_GRANT_EXPIRED',
+
+  // Node extended
+  NODE_MISCONFIGURED: 'NODE_MISCONFIGURED',
+  NODE_DB_CORRUPT: 'NODE_DB_CORRUPT',
+  NODE_RPC_BROKEN: 'NODE_RPC_BROKEN',
+
+  // Chain extended
+  SEQUENCE_MISMATCH: 'SEQUENCE_MISMATCH',
+
+  // Connection lifecycle
+  NOT_CONNECTED: 'NOT_CONNECTED',
+  CONNECTION_IN_PROGRESS: 'CONNECTION_IN_PROGRESS',
+  HANDSHAKE_FAILED: 'HANDSHAKE_FAILED',
 };
 
 // ─── Error Severity Classification ───────────────────────────────────────────
@@ -168,6 +185,23 @@ export const ERROR_SEVERITY = {
   // Infrastructure — check system state
   [ErrorCodes.TLS_CERT_CHANGED]: 'infrastructure',
   [ErrorCodes.V2RAY_NOT_FOUND]: 'infrastructure',
+
+  // Fee grant
+  [ErrorCodes.FEE_GRANT_MISSING_AT_START]: 'fatal',
+  [ErrorCodes.FEE_GRANT_EXPIRED]: 'fatal',
+
+  // Node extended
+  [ErrorCodes.NODE_MISCONFIGURED]: 'retryable',
+  [ErrorCodes.NODE_DB_CORRUPT]: 'retryable',
+  [ErrorCodes.NODE_RPC_BROKEN]: 'retryable',
+
+  // Chain extended
+  [ErrorCodes.SEQUENCE_MISMATCH]: 'retryable',
+
+  // Connection lifecycle
+  [ErrorCodes.NOT_CONNECTED]: 'fatal',
+  [ErrorCodes.CONNECTION_IN_PROGRESS]: 'recoverable',
+  [ErrorCodes.HANDSHAKE_FAILED]: 'retryable',
 };
 
 /** Check if an error should be retried. */
@@ -213,6 +247,15 @@ export function userMessage(error) {
     [ErrorCodes.CHAIN_LAG]: 'Session not yet confirmed on node. Wait a moment and try again.',
     [ErrorCodes.NODE_DATABASE_CORRUPT]: 'Node has a corrupted database. Try a different server.',
     [ErrorCodes.INVALID_ASSIGNED_IP]: 'Node returned an invalid IP address during handshake. Try a different server.',
+    [ErrorCodes.FEE_GRANT_MISSING_AT_START]: 'Plan owner has not issued a fee grant to this wallet. Contact the plan provider.',
+    [ErrorCodes.FEE_GRANT_EXPIRED]: "The plan owner's fee grant has expired. Contact the plan provider to renew.",
+    [ErrorCodes.NODE_MISCONFIGURED]: 'Node is misconfigured. Try a different server.',
+    [ErrorCodes.NODE_DB_CORRUPT]: 'Node has a corrupted database. Try a different server.',
+    [ErrorCodes.NODE_RPC_BROKEN]: "Node's RPC endpoint is not responding. Try a different server.",
+    [ErrorCodes.SEQUENCE_MISMATCH]: 'Transaction sequence mismatch. Wait a moment and retry.',
+    [ErrorCodes.NOT_CONNECTED]: 'Not connected to any VPN node.',
+    [ErrorCodes.CONNECTION_IN_PROGRESS]: 'A connection attempt is already in progress.',
+    [ErrorCodes.HANDSHAKE_FAILED]: 'VPN handshake failed. The node may be overloaded or misconfigured.',
   };
   return map[code] || error?.message || 'An unexpected error occurred.';
 }
