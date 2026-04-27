@@ -45,6 +45,40 @@ let defaultLog = console.log;
 
 // ─── Shared Validation ───────────────────────────────────────────────────────
 
+/**
+ * Validate a chain endpoint URL. Enforces https:// to prevent attackers from
+ * coercing the SDK into broadcasting signed TXs over cleartext HTTP — a passive
+ * network observer on http://attacker.example/rpc would see the full TX body
+ * and could correlate it to the user's wallet address. Localhost is exempted
+ * for local-node development.
+ *
+ * @param {*} url - Value to validate (allowed: undefined/null, or string)
+ * @param {string} fieldName - 'rpcUrl' or 'lcdUrl', used in error messages
+ */
+function validateChainUrl(url, fieldName) {
+  if (url == null) return;
+  if (typeof url !== 'string') {
+    throw new ValidationError(ErrorCodes.INVALID_URL, `${fieldName} must be a string URL`, { value: url });
+  }
+  let parsed;
+  try { parsed = new URL(url); }
+  catch { throw new ValidationError(ErrorCodes.INVALID_URL, `${fieldName} is not a valid URL`, { value: url }); }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+    throw new ValidationError(ErrorCodes.INVALID_URL, `${fieldName} must use http:// or https:// (got ${parsed.protocol})`, { value: url });
+  }
+  const isLocalhost = parsed.hostname === 'localhost'
+    || parsed.hostname === '127.0.0.1'
+    || parsed.hostname === '::1'
+    || parsed.hostname === '[::1]';
+  if (parsed.protocol === 'http:' && !isLocalhost) {
+    throw new ValidationError(
+      ErrorCodes.INVALID_URL,
+      `${fieldName} must use https:// for non-localhost endpoints. Cleartext HTTP leaks signed TXs and queries to network observers (got ${url}).`,
+      { value: url },
+    );
+  }
+}
+
 function validateConnectOpts(opts, fnName) {
   if (!opts || typeof opts !== 'object') throw new ValidationError(ErrorCodes.INVALID_OPTIONS, `${fnName}() requires an options object`);
   if (typeof opts.mnemonic !== 'string') {
@@ -60,8 +94,8 @@ function validateConnectOpts(opts, fnName) {
   if (typeof opts.nodeAddress !== 'string' || !/^sentnode1[a-z0-9]{38}$/.test(opts.nodeAddress)) {
     throw new ValidationError(ErrorCodes.INVALID_NODE_ADDRESS, 'nodeAddress must be a valid sentnode1... bech32 address (47 characters)', { value: opts.nodeAddress });
   }
-  if (opts.rpcUrl != null && typeof opts.rpcUrl !== 'string') throw new ValidationError(ErrorCodes.INVALID_URL, 'rpcUrl must be a string URL', { value: opts.rpcUrl });
-  if (opts.lcdUrl != null && typeof opts.lcdUrl !== 'string') throw new ValidationError(ErrorCodes.INVALID_URL, 'lcdUrl must be a string URL', { value: opts.lcdUrl });
+  validateChainUrl(opts.rpcUrl, 'rpcUrl');
+  validateChainUrl(opts.lcdUrl, 'lcdUrl');
 }
 
 // ─── Shared Connect Flow (eliminates connectDirect/connectViaPlan duplication) ─
