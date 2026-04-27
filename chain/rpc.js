@@ -780,8 +780,14 @@ export async function rpcQueryFeeGrantsIssued(client, granter, { limit = 100 } =
     const fields = decodeProto(new Uint8Array(response));
     // Field 1 = repeated Grant
     return (fields[1] || []).map(entry => _decodeFeeGrant(entry.value, null, granter));
-  } catch {
-    return [];
+  } catch (err) {
+    // Classify: "not found"/404 → treat as empty (genuinely no grants). Any
+    // other error (network, decode, timeout) should surface so the caller can
+    // distinguish "granter has no grants" from "RPC is broken" and fall back
+    // to LCD instead of silently returning [].
+    const msg = (err?.message || '').toLowerCase();
+    if (msg.includes('not found') || msg.includes('404')) return [];
+    throw err;
   }
 }
 

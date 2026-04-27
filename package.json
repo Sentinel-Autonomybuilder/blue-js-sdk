@@ -6,7 +6,7 @@
   "main": "index.js",
   "types": "types/index.d.ts",
   "bin": {
-    "sentinel": "./cli/index.js"
+    "sentinel": "cli/index.js"
   },
   "exports": {
     ".": {
@@ -86,7 +86,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Sentinel-Autonomybuilder/sentinel-dvpn-sdk.git"
+    "url": "git+https://github.com/Sentinel-Autonomybuilder/sentinel-dvpn-sdk.git"
   },
   "bugs": {
     "url": "https://github.com/Sentinel-Autonomybuilder/sentinel-dvpn-sdk/issues"
