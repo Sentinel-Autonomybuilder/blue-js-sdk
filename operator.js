@@ -81,6 +81,16 @@ export {
   computeFeeGrantGasCosts,
 } from './cosmjs-setup.js';
 
+export {
+  batchRevokeFeeGrants,
+} from './operator/batch-revoke.js';
+
+export {
+  queryFeeGrantHistory,
+  decodeFeeGrantEvent,
+  attr,
+} from './operator/feegrant-history.js';
+
 // ─── Authz ──────────────────────────────────────────────────────────────────
 
 export {

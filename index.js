@@ -544,6 +544,19 @@ export {
   getCacheStats,
 } from './audit.js';
 
+// ─── Operator: Batch Fee Grant Revoke ───────────────────────────────────────
+
+export {
+  batchRevokeFeeGrants,
+} from './operator/batch-revoke.js';
+
+// ─── Operator: Fee Grant History ────────────────────────────────────────────
+
+export {
+  queryFeeGrantHistory,
+  decodeFeeGrantEvent,
+  attr,
+} from './operator/feegrant-history.js';
 // ─── Plan Ownership Pre-Flight ──────────────────────────────────────────────
 
 export {
