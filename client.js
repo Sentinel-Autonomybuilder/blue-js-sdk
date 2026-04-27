@@ -50,6 +50,10 @@ export class SentinelClient extends EventEmitter {
    * @param {string} opts.rpcUrl - Default RPC URL (overridable per-call)
    * @param {string} opts.lcdUrl - Default LCD URL (overridable per-call)
    * @param {string} opts.mnemonic - Default mnemonic (overridable per-call)
+   * @param {object} opts.signer - Pre-built cosmjs OfflineDirectSigner (e.g. from
+   *   PrivyCosmosSigner.fromRawSign). When provided, takes precedence over `mnemonic`
+   *   for queries and broadcasts. NOTE: VPN connect/disconnect (tunnel handshake)
+   *   currently still requires a mnemonic — see docs/PRIVY-INTEGRATION.md.
    * @param {string} opts.v2rayExePath - Default V2Ray binary path
    * @param {function} opts.logger - Logger function (default: console.log). Set to null to suppress.
    * @param {'tofu'|'none'} opts.tlsTrust - TLS trust mode (default: 'tofu')
@@ -89,6 +93,21 @@ export class SentinelClient extends EventEmitter {
     return merged;
   }
 
+  /**
+   * Throw a helpful error if a connect path is invoked without a mnemonic.
+   * The WireGuard/V2Ray handshake currently signs locally with the cosmos privkey,
+   * so a raw-sign-only signer (e.g. Privy custody) cannot complete the tunnel
+   * handshake. Queries and broadcasts work without a mnemonic.
+   */
+  _requireMnemonicForTunnel(merged) {
+    if (typeof merged.mnemonic === 'string' && merged.mnemonic.trim().length > 0) return;
+    throw new SentinelError(ErrorCodes.INVALID_MNEMONIC,
+      'VPN connect/disconnect requires a mnemonic. A signer-only client (e.g. ' +
+      'Privy raw-sign Mode B) can broadcast TXs and query chain state, but the ' +
+      'tunnel handshake signs with the raw secp256k1 privkey. Pass `mnemonic` to ' +
+      'the constructor or to this call. See docs/PRIVY-INTEGRATION.md.');
+  }
+
   // ─── Connection ──────────────────────────────────────────────────────────
 
   /**
@@ -98,6 +117,7 @@ export class SentinelClient extends EventEmitter {
    */
   async connect(opts = {}) {
     const merged = this._mergeOpts(opts);
+    this._requireMnemonicForTunnel(merged);
     this._connection = await connectDirect(merged);
     return this._connection;
   }
@@ -110,6 +130,7 @@ export class SentinelClient extends EventEmitter {
    */
   async autoConnect(opts = {}) {
     const merged = this._mergeOpts(opts);
+    this._requireMnemonicForTunnel(merged);
     this._connection = await connectAuto(merged);
     return this._connection;
   }
@@ -121,6 +142,7 @@ export class SentinelClient extends EventEmitter {
    */
   async connectPlan(opts = {}) {
     const merged = this._mergeOpts(opts);
+    this._requireMnemonicForTunnel(merged);
     this._connection = await connectViaPlan(merged);
     return this._connection;
   }
@@ -209,16 +231,50 @@ export class SentinelClient extends EventEmitter {
   // ─── Wallet & Chain ──────────────────────────────────────────────────────
 
   /**
-   * Create or return cached wallet from mnemonic.
-   * @param {string} mnemonic - Override mnemonic (or uses instance default)
+   * Create or return cached wallet/signer.
+   *
+   * Resolution order:
+   *   1. `mnemonic` arg (per-call override) → derive a DirectSecp256k1HdWallet
+   *   2. `this._defaults.signer` (constructor-supplied OfflineDirectSigner) → use as-is
+   *   3. `this._defaults.mnemonic` → derive once, cache by mnemonic SHA
+   *
+   * Returned shape: `{ wallet, account }` — `wallet` is a cosmjs OfflineDirectSigner
+   * (DirectSecp256k1HdWallet OR a PrivyRawSignDirectSigner OR any equivalent), and
+   * `account` is the first entry from `wallet.getAccounts()`.
+   *
+   * @param {string} [mnemonic] - Optional per-call mnemonic override
    */
   async getWallet(mnemonic) {
-    const m = mnemonic || this._defaults.mnemonic;
-    if (!m) throw new SentinelError(ErrorCodes.INVALID_MNEMONIC, 'No mnemonic provided');
-    // Invalidate cache if mnemonic changed
+    // Per-call mnemonic always wins (override path).
+    if (mnemonic) {
+      if (this._wallet && this._walletMnemonic !== mnemonic) {
+        this._wallet = null;
+        this._client = null;
+      }
+      if (this._wallet) return this._wallet;
+      this._wallet = await createWallet(mnemonic);
+      this._walletMnemonic = mnemonic;
+      return this._wallet;
+    }
+    // Constructor-supplied signer (Privy raw-sign, Keplr offline signer, etc.).
+    if (this._defaults.signer) {
+      if (this._wallet) return this._wallet;
+      const accounts = await this._defaults.signer.getAccounts();
+      if (!accounts || accounts.length === 0) {
+        throw new SentinelError(ErrorCodes.INVALID_OPTIONS,
+          'signer.getAccounts() returned no accounts');
+      }
+      this._wallet = { wallet: this._defaults.signer, account: accounts[0] };
+      this._walletMnemonic = null;
+      return this._wallet;
+    }
+    // Constructor-supplied mnemonic (the original path).
+    const m = this._defaults.mnemonic;
+    if (!m) throw new SentinelError(ErrorCodes.INVALID_MNEMONIC,
+      'No mnemonic or signer provided. Pass `mnemonic` or `signer` to the SentinelClient constructor.');
     if (this._wallet && this._walletMnemonic !== m) {
       this._wallet = null;
-      this._client = null; // client depends on wallet
+      this._client = null;
     }
     if (this._wallet) return this._wallet;
     this._wallet = await createWallet(m);
