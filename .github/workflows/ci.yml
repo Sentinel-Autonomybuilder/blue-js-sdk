@@ -219,6 +219,8 @@ jobs:
             const files = [];
             for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
               if (e.name === 'node_modules' || e.name === '.git') continue;
+              // Skip test fixtures - they legitimately use placeholder addresses
+              if (e.isDirectory() && (e.name === 'test' || e.name === 'tests' || e.name === '__tests__')) continue;
               const p = path.join(dir, e.name);
               if (e.isDirectory()) files.push(...walk(p));
               else if (p.endsWith('.js')) files.push(p);
