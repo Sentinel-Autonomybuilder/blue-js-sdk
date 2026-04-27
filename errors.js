@@ -196,9 +196,27 @@ export const ErrorCodes = {
   ALL_NODES_FAILED: 'ALL_NODES_FAILED',
   ALREADY_CONNECTED: 'ALREADY_CONNECTED',
   PARTIAL_CONNECTION_FAILED: 'PARTIAL_CONNECTION_FAILED',
+  NOT_CONNECTED: 'NOT_CONNECTED',
+  CONNECTION_IN_PROGRESS: 'CONNECTION_IN_PROGRESS',
+  HANDSHAKE_FAILED: 'HANDSHAKE_FAILED',
 
   // Chain timing
   CHAIN_LAG: 'CHAIN_LAG',
+  SEQUENCE_MISMATCH: 'SEQUENCE_MISMATCH',
+
+  // Subscription / Plan
+  SUBSCRIBE_FAILED: 'SUBSCRIBE_FAILED',
+  SUBSCRIPTION_NOT_FOUND: 'SUBSCRIPTION_NOT_FOUND',
+  SHARE_FAILED: 'SHARE_FAILED',
+
+  // Fee grants
+  FEE_GRANT_MISSING_AT_START: 'FEE_GRANT_MISSING_AT_START',
+  FEE_GRANT_EXPIRED: 'FEE_GRANT_EXPIRED',
+
+  // Node (additional states)
+  NODE_MISCONFIGURED: 'NODE_MISCONFIGURED',
+  NODE_DB_CORRUPT: 'NODE_DB_CORRUPT',
+  NODE_RPC_BROKEN: 'NODE_RPC_BROKEN',
 
   // Audit / network-test pipeline (used by AuditError subclasses)
   HANDSHAKE_FAILED: 'HANDSHAKE_FAILED',
@@ -224,6 +242,12 @@ export const ERROR_SEVERITY = {
   [ErrorCodes.SESSION_POISONED]: 'fatal',
   [ErrorCodes.WG_NOT_AVAILABLE]: 'fatal',
   [ErrorCodes.NODE_DATABASE_CORRUPT]: 'retryable',
+  [ErrorCodes.ALREADY_CONNECTED]: 'fatal',
+  [ErrorCodes.NOT_CONNECTED]: 'fatal',
+  [ErrorCodes.CONNECTION_IN_PROGRESS]: 'fatal',
+  [ErrorCodes.ABORTED]: 'fatal',
+  [ErrorCodes.FEE_GRANT_MISSING_AT_START]: 'fatal',
+  [ErrorCodes.FEE_GRANT_EXPIRED]: 'fatal',
 
   // Retryable — node-level
   [ErrorCodes.NODE_NOT_FOUND]: 'retryable',
@@ -233,6 +257,9 @@ export const ERROR_SEVERITY = {
   [ErrorCodes.NODE_NO_UDVPN]: 'retryable',
   [ErrorCodes.NODE_CLOCK_DRIFT]: 'retryable',
   [ErrorCodes.NODE_INACTIVE]: 'retryable',
+  [ErrorCodes.NODE_MISCONFIGURED]: 'retryable',
+  [ErrorCodes.NODE_DB_CORRUPT]: 'retryable',
+  [ErrorCodes.NODE_RPC_BROKEN]: 'retryable',
   [ErrorCodes.V2RAY_ALL_FAILED]: 'retryable',
   [ErrorCodes.BROADCAST_FAILED]: 'retryable',
   [ErrorCodes.TX_FAILED]: 'retryable',
@@ -242,11 +269,17 @@ export const ERROR_SEVERITY = {
   [ErrorCodes.WG_NO_CONNECTIVITY]: 'retryable',
   [ErrorCodes.TUNNEL_SETUP_FAILED]: 'retryable',
   [ErrorCodes.CHAIN_LAG]: 'retryable',
+  [ErrorCodes.SEQUENCE_MISMATCH]: 'retryable',
+  [ErrorCodes.SUBSCRIBE_FAILED]: 'retryable',
+  [ErrorCodes.SUBSCRIPTION_NOT_FOUND]: 'retryable',
+  [ErrorCodes.SHARE_FAILED]: 'retryable',
+  [ErrorCodes.INVALID_ASSIGNED_IP]: 'retryable',
 
   // Recoverable — can resume with recoverSession()
   [ErrorCodes.SESSION_EXTRACT_FAILED]: 'recoverable',
   [ErrorCodes.PARTIAL_CONNECTION_FAILED]: 'recoverable',
   [ErrorCodes.SESSION_EXISTS]: 'recoverable',
+  [ErrorCodes.HANDSHAKE_FAILED]: 'recoverable',
 
   // Infrastructure — check system state
   [ErrorCodes.TLS_CERT_CHANGED]: 'infrastructure',
@@ -304,6 +337,18 @@ export function userMessage(error) {
     [ErrorCodes.CHAIN_LAG]: 'Session not yet confirmed on node. Wait a moment and try again.',
     [ErrorCodes.NODE_DATABASE_CORRUPT]: 'Node has a corrupted database. Try a different server.',
     [ErrorCodes.INVALID_ASSIGNED_IP]: 'Node returned an invalid IP address during handshake. Try a different server.',
+    [ErrorCodes.NODE_MISCONFIGURED]: 'Node is misconfigured. Try a different server.',
+    [ErrorCodes.NODE_DB_CORRUPT]: 'Node database is corrupt. Try a different server.',
+    [ErrorCodes.NODE_RPC_BROKEN]: 'Node backend is temporarily unavailable. Try again later.',
+    [ErrorCodes.NOT_CONNECTED]: 'Not connected to any node.',
+    [ErrorCodes.CONNECTION_IN_PROGRESS]: 'A connection attempt is already in progress.',
+    [ErrorCodes.HANDSHAKE_FAILED]: 'Connection handshake failed. Try again.',
+    [ErrorCodes.SEQUENCE_MISMATCH]: 'Transaction sequence error. Retry automatically.',
+    [ErrorCodes.SUBSCRIBE_FAILED]: 'Failed to subscribe to the plan. Check your balance and try again.',
+    [ErrorCodes.SUBSCRIPTION_NOT_FOUND]: 'Subscription not found after payment. Check chain state.',
+    [ErrorCodes.SHARE_FAILED]: 'Failed to share subscription bandwidth. Try again.',
+    [ErrorCodes.FEE_GRANT_MISSING_AT_START]: 'Plan owner has not issued a fee grant to this wallet. Contact the plan provider.',
+    [ErrorCodes.FEE_GRANT_EXPIRED]: 'The plan owner\'s fee grant has expired. Contact the plan provider to renew.',
   };
   return map[code] || error?.message || 'An unexpected error occurred.';
 }

@@ -618,7 +618,79 @@ export async function querySubscriptionAllocations(subscriptionId, lcdUrl) {
   } catch { return []; }
 }
 
+/**
+ * Normalize chain status values from RPC (numeric: 1=active, 2=inactive, 3=pending)
+ * and LCD (strings: "STATUS_ACTIVE", "STATUS_INACTIVE", "STATUS_INACTIVE_PENDING").
+ * Returns true only for the ACTIVE status, never for INACTIVE_PENDING (status=3),
+ * which is a transient terminal state and should never be treated as connectable.
+ *
+ * @param {number|string|undefined} v
+ * @returns {boolean}
+ */
+export function isActiveStatus(v) {
+  if (v === 1 || v === '1') return true;
+  if (typeof v === 'string') return v === 'STATUS_ACTIVE' || v === 'active';
+  return false;
+}
+
 // ─── Plan Subscriber Helpers (v25b) ──────────────────────────────────────────
+
+/**
+ * Query a single plan's metadata. RPC-first with LCD fallback.
+ *
+ * Returns the plan's provider (sentprov1...), price list, duration, bytes quota,
+ * and status. Builders use this before connecting through a plan subscription to
+ * resolve the plan owner (the address that typically acts as fee granter for
+ * MsgStartSubscriptionRequest + MsgPlanStartSession TXs).
+ *
+ * NOTE: `prov_address` is a sentprov1... provider address, which is usually
+ * derived from a sent1... account address. If you need the operator's sent1...
+ * account (the expected fee granter), either pass it in explicitly via app
+ * config or call `getProviderByAddress(prov_address)` and read `.address`.
+ *
+ * @param {number|string} planId
+ * @param {object} [opts]
+ * @param {string} [opts.lcdUrl]
+ * @returns {Promise<{ planId: string, provider: string, prices: Array, bytes: string, duration: string, status: number, statusAt: string|null, private: boolean } | null>}
+ */
+export async function queryPlanDetails(planId, opts = {}) {
+  // RPC-first
+  try {
+    const rpc = await getRpcClient();
+    if (rpc) {
+      const plan = await rpcQueryPlan(rpc, planId);
+      if (plan) {
+        return {
+          planId: String(plan.id),
+          provider: plan.prov_address,
+          prices: plan.prices || [],
+          bytes: plan.bytes || '0',
+          duration: plan.duration || '0s',
+          status: plan.status,
+          statusAt: plan.status_at,
+          private: plan.private === true,
+        };
+      }
+    }
+  } catch { /* fall through to LCD */ }
+
+  // LCD fallback: /sentinel/plan/v3/plans/{planId}
+  try {
+    const data = await lcdQuery(`/sentinel/plan/v3/plans/${planId}`, { lcdUrl: opts.lcdUrl });
+    const plan = data?.plan;
+    if (!plan) return null;
+    return {
+      planId: String(plan.id),
+      provider: plan.prov_address || plan.provider_address || '',
+      prices: plan.prices || [],
+      bytes: plan.bytes || '0',
+      duration: plan.duration || '0s',
+      status: typeof plan.status === 'number' ? plan.status : (plan.status === 'STATUS_ACTIVE' ? 1 : 2),
+      statusAt: plan.status_at || null,
+      private: plan.private === true,
+    };
+  } catch { return null; }
+}
 
 /**
  * Query all subscriptions for a plan. Supports owner filtering.
