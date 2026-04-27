@@ -299,6 +299,7 @@ export {
 export {
   createRpcQueryClient,
   createRpcQueryClientWithFallback,
+  connectFailoverWithTimeout,
   disconnectRpc,
   rpcQueryNodes,
   rpcQueryNode,
