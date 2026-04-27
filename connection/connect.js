@@ -40,8 +40,14 @@ import {
 import { performHandshake, validateTunnelRequirements, killV2RayProc, verifyDependencies } from './tunnel.js';
 import { verifyConnection } from './state.js';
 import { registerCleanupHandlers } from './disconnect.js';
+import { withMnemonicRedaction } from './logger.js';
 
-let defaultLog = console.log;
+// Default logger wraps console.log with a mnemonic redactor. Anything that
+// resembles a 12–24 word BIP-39 phrase in a log argument is replaced with
+// `[REDACTED MNEMONIC]` before it reaches stdout. Defense-in-depth — the SDK
+// does not currently log the mnemonic, but a future template-string bug or
+// careless `JSON.stringify(opts)` won't leak it through the default logger.
+let defaultLog = withMnemonicRedaction(console.log);
 
 // ─── Shared Validation ───────────────────────────────────────────────────────
 
@@ -548,7 +554,7 @@ export async function connectAuto(opts) {
   if (opts.circuitBreaker) configureCircuitBreaker(opts.circuitBreaker);
 
   const maxAttempts = opts.maxAttempts || 3;
-  const logFn = opts.log || console.log;
+  const logFn = opts.log || defaultLog;
   const errors = [];
 
   // If nodeAddress specified, try it first (skip circuit breaker check for explicit choice)

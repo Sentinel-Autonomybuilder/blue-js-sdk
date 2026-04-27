@@ -62,6 +62,7 @@ import {
   SentinelError, ValidationError, NodeError, ChainError, TunnelError, ErrorCodes,
 } from './errors.js';
 import { createNodeHttpsAgent, publicEndpointAgent } from './tls-trust.js';
+import { withMnemonicRedaction } from './connection/logger.js';
 
 // CA-validated agent for LCD/RPC public endpoints (valid CA certs)
 const httpsAgent = publicEndpointAgent;
@@ -128,8 +129,13 @@ export class ConnectionState {
 const _activeStates = new Set();
 const _defaultState = new ConnectionState();
 
-// Default logger — can be overridden per-call via opts.log
-let defaultLog = console.log;
+// Default logger — can be overridden per-call via opts.log.
+// Wrapped with mnemonic redaction so any 12–24 word BIP-39 phrase that ends up
+// in a log argument is replaced with `[REDACTED MNEMONIC]` before reaching
+// stdout. Defense-in-depth — the SDK does not currently log the mnemonic, but
+// a future template-string bug or careless `JSON.stringify(opts)` won't leak
+// it through the default logger.
+let defaultLog = withMnemonicRedaction(console.log);
 
 // ─── Wallet Cache ────────────────────────────────────────────────────────────
 // v21: Cache wallet derivation (BIP39 → SLIP-10 is CPU-bound, ~300ms).
@@ -1152,7 +1158,7 @@ export async function connectAuto(opts) {
   if (opts.circuitBreaker) configureCircuitBreaker(opts.circuitBreaker);
 
   const maxAttempts = opts.maxAttempts || 3;
-  const logFn = opts.log || console.log;
+  const logFn = opts.log || defaultLog;
   const errors = [];
 
   // If nodeAddress specified, try it first (skip circuit breaker check for explicit choice)
@@ -2465,7 +2471,7 @@ export async function recoverSession(opts) {
   if (!opts?.nodeAddress) throw new ValidationError(ErrorCodes.INVALID_OPTIONS, 'recoverSession requires opts.nodeAddress');
   if (!opts?.mnemonic) throw new ValidationError(ErrorCodes.INVALID_MNEMONIC, 'recoverSession requires opts.mnemonic');
 
-  const logFn = opts.log || console.log;
+  const logFn = opts.log || defaultLog;
   const onProgress = opts.onProgress || null;
   const sessionId = BigInt(opts.sessionId);
   const timeouts = { ...DEFAULT_TIMEOUTS, ...opts.timeouts };

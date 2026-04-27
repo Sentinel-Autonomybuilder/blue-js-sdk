@@ -26,6 +26,11 @@ import { DEFAULT_LCD, DEFAULT_TIMEOUTS } from '../defaults.js';
 import { nodeStatusV3 } from '../v3protocol.js';
 import { queryNode, privKeyFromMnemonic } from '../cosmjs-setup.js';
 import { createNodeHttpsAgent } from '../tls-trust.js';
+import { withMnemonicRedaction } from './logger.js';
+
+// Default logger wraps console.log so any 12–24 word BIP-39 phrase that ends
+// up in a log argument is replaced before reaching stdout. See connection/logger.js.
+const defaultLog = withMnemonicRedaction(console.log);
 
 // ─── Disconnect ──────────────────────────────────────────────────────────────
 //
@@ -204,7 +209,7 @@ export async function recoverSession(opts) {
   if (!opts?.nodeAddress) throw new ValidationError(ErrorCodes.INVALID_OPTIONS, 'recoverSession requires opts.nodeAddress');
   if (!opts?.mnemonic) throw new ValidationError(ErrorCodes.INVALID_MNEMONIC, 'recoverSession requires opts.mnemonic');
 
-  const logFn = opts.log || console.log;
+  const logFn = opts.log || defaultLog;
   const onProgress = opts.onProgress || null;
   const sessionId = BigInt(opts.sessionId);
   const timeouts = { ...DEFAULT_TIMEOUTS, ...opts.timeouts };
