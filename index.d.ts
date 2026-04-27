@@ -1301,6 +1301,32 @@ export class SessionManager {
   stop(): void;
 }
 
+/**
+ * Map returned by `extractSessionMap`. Standard Map plus orphan hint fields:
+ *   - `_orphanIds` — session IDs the chain emitted without a node_address
+ *   - `_needsChainLookup` — true when at least one expected node is unmapped
+ */
+export interface SessionExtractionMap extends Map<string, bigint> {
+  _orphanIds: bigint[];
+  _needsChainLookup: boolean;
+}
+
+/**
+ * Extract session IDs keyed by node_address from a multi-message tx.
+ *
+ * Most chain heights emit `session_id` events WITHOUT a colocated `node_address`.
+ * Any such session_id is reported as an orphan in `_orphanIds`; the caller must
+ * resolve it to a node by querying the chain. Pairing by event index is unsafe
+ * and is explicitly avoided.
+ *
+ * @param txResult - Tx broadcast result (RPC or LCD shape)
+ * @param nodeAddrs - Expected node addresses (used to compute `_needsChainLookup`)
+ */
+export function extractSessionMap(
+  txResult: { events?: Array<{ type: string; attributes?: Array<{ key: string; value: string }> }> },
+  nodeAddrs?: string[],
+): SessionExtractionMap;
+
 // ─── Batch Session Operations ──────────────────────────────────────────────
 
 /** Start sessions on multiple nodes in one batch TX. */
