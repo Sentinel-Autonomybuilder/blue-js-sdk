@@ -1090,6 +1090,22 @@ export const SPEEDTEST_DEFAULTS: Readonly<{
   fallbackHosts: ReadonlyArray<{ host: string; path: string; size: number }>;
 }>;
 
+/** Result shape for both checkGoogleDirect and checkGoogleViaSocks5. */
+export interface GoogleCheckResult {
+  googleAccessible: boolean;
+  googleLatencyMs: number | null;
+  googleError: string | null;
+}
+
+/** Resolve www.google.com to an IPv4 address (cached for 5 minutes). */
+export function resolveGoogleIp(): Promise<string | null>;
+
+/** Cheap latency-only check that google.com is reachable through the active tunnel (WireGuard / direct). */
+export function checkGoogleDirect(timeoutMs?: number): Promise<GoogleCheckResult>;
+
+/** Cheap latency-only check that google.com is reachable through a V2Ray SOCKS5 proxy on localhost. */
+export function checkGoogleViaSocks5(proxyPort: number, timeoutMs?: number): Promise<GoogleCheckResult>;
+
 // ─── Plan & Provider Message Encoders ──────────────────────────────────────
 
 export interface PriceParam {

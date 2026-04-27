@@ -187,6 +187,9 @@ export {
   flushSpeedTestDnsCache,
   compareSpeedTests,
   SPEEDTEST_DEFAULTS,
+  checkGoogleDirect,
+  checkGoogleViaSocks5,
+  resolveGoogleIp,
 } from './speedtest.js';
 
 // ─── Plan & Provider Management ─────────────────────────────────────────────
