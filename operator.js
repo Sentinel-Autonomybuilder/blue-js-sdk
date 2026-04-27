@@ -134,3 +134,10 @@ export {
   encodeMsgUpdateSubscription,
   encodeMsgUpdateSession,
 } from './v3protocol.js';
+
+// ─── Lease Batch Utilities ───────────────────────────────────────────────────
+
+export {
+  autoLeaseNode,
+  batchLeaseNodes,
+} from './operator/auto-lease.js';
