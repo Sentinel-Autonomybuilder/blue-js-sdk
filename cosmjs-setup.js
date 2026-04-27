@@ -1188,6 +1188,8 @@ export async function hasActiveSubscription(address, planId, lcdUrl) {
   return _hasActiveSubscription(address, planId, lcdUrl);
 }
 
+
+
 // ─── v26c: Display Helpers ───────────────────────────────────────────────────
 
 /**

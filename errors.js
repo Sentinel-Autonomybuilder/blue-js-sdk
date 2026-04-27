@@ -218,6 +218,22 @@ export const ErrorCodes = {
   NODE_DB_CORRUPT: 'NODE_DB_CORRUPT',
   NODE_RPC_BROKEN: 'NODE_RPC_BROKEN',
 
+  // Fee grant
+  FEE_GRANT_MISSING_AT_START: 'FEE_GRANT_MISSING_AT_START',
+  FEE_GRANT_EXPIRED: 'FEE_GRANT_EXPIRED',
+
+  // Node extended
+  NODE_MISCONFIGURED: 'NODE_MISCONFIGURED',
+  NODE_DB_CORRUPT: 'NODE_DB_CORRUPT',
+  NODE_RPC_BROKEN: 'NODE_RPC_BROKEN',
+
+  // Chain extended
+  SEQUENCE_MISMATCH: 'SEQUENCE_MISMATCH',
+
+  // Connection lifecycle
+  NOT_CONNECTED: 'NOT_CONNECTED',
+  CONNECTION_IN_PROGRESS: 'CONNECTION_IN_PROGRESS',
+
   // Audit / network-test pipeline (used by AuditError subclasses)
   HANDSHAKE_FAILED: 'HANDSHAKE_FAILED',
   PAYMENT_FAILED: 'PAYMENT_FAILED',
@@ -285,8 +301,23 @@ export const ERROR_SEVERITY = {
   [ErrorCodes.TLS_CERT_CHANGED]: 'infrastructure',
   [ErrorCodes.V2RAY_NOT_FOUND]: 'infrastructure',
 
-  // Audit pipeline — most are retryable (a single audit attempt failing
-  // does not mean the node is permanently broken)
+  // Fee grant
+  [ErrorCodes.FEE_GRANT_MISSING_AT_START]: 'fatal',
+  [ErrorCodes.FEE_GRANT_EXPIRED]: 'fatal',
+
+  // Node extended
+  [ErrorCodes.NODE_MISCONFIGURED]: 'retryable',
+  [ErrorCodes.NODE_DB_CORRUPT]: 'retryable',
+  [ErrorCodes.NODE_RPC_BROKEN]: 'retryable',
+
+  // Chain extended
+  [ErrorCodes.SEQUENCE_MISMATCH]: 'retryable',
+
+  // Connection lifecycle
+  [ErrorCodes.NOT_CONNECTED]: 'fatal',
+  [ErrorCodes.CONNECTION_IN_PROGRESS]: 'recoverable',
+
+  // Audit pipeline
   [ErrorCodes.HANDSHAKE_FAILED]: 'retryable',
   [ErrorCodes.PAYMENT_FAILED]: 'retryable',
   [ErrorCodes.NODE_UNREACHABLE]: 'retryable',

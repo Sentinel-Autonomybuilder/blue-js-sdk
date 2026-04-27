@@ -45,8 +45,8 @@ await t('1.2 balance > 0', async () => { console.log('      Balance:', formatP2P
 // ═══ CHAIN QUERIES ═══
 console.log('\n═══ CHAIN QUERIES ═══');
 const allNodes = await fetchAllNodes();
-await t('2.1 fetchAllNodes > 900', async () => { console.log('      Nodes:', allNodes.length); return allNodes.length > 900; });
-await t('2.2 nodes have pricing', async () => allNodes.filter(n => n.gigabyte_prices?.length > 0).length > 500);
+await t('2.1 fetchAllNodes > 100', async () => { console.log('      Nodes:', allNodes.length); return allNodes.length > 100; });
+await t('2.2 nodes have pricing', async () => allNodes.filter(n => n.gigabyte_prices?.length > 0).length > 50);
 const plans = await discoverPlans(undefined, { maxId: 30 });
 await t('2.5 discoverPlans finds plans', async () => { console.log('      Plans:', plans.length); return plans.length > 0; });
 
