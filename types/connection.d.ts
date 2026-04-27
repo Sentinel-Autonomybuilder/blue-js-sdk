@@ -302,8 +302,12 @@ export class ConnectionState {
   systemProxy: boolean;
   /** Saved proxy state for restoration on disconnect */
   savedProxyState: unknown;
-  /** @internal Stored mnemonic for session-end TX on disconnect. Cleared after use. */
-  _mnemonic: string | null;
+  /**
+   * @internal Derived OfflineSigner wallet, used by _endSessionOnChain on disconnect.
+   * v37 (security): replaced `_mnemonic: string | null`. The raw BIP-39 phrase is no
+   * longer kept on long-lived state.
+   */
+  _wallet: unknown;
   /** Whether a tunnel is currently active */
   readonly isConnected: boolean;
   /** Remove this state from the global cleanup registry */
