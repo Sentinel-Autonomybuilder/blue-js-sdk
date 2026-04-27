@@ -33,8 +33,10 @@
   "files": [
     "*.js",
     "types/",
+    "auth/",
     "chain/",
     "connection/",
+    "operator/",
     "protocol/",
     "wallet/",
     "security/",
