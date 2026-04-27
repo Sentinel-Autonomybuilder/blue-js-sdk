@@ -1498,6 +1498,18 @@ interface CountryGroup {
 /** Group nodes by country for sidebar display. Sorted by online count, unknown last. */
 export function groupNodesByCountry(nodes: NodeDisplay[]): CountryGroup[];
 
+/** Continent code: EU/AS/NA/SA/AF/OC/AN/ZZ (Antarctica/Unknown for completeness). */
+export type ContinentCode = 'EU' | 'AS' | 'NA' | 'SA' | 'AF' | 'OC' | 'AN' | 'ZZ';
+
+/** Map of ISO 3166-1 alpha-2 country codes → continent codes. */
+export const CONTINENT_BY_CODE: Readonly<Record<string, ContinentCode>>;
+
+/** Display names keyed by continent code: { EU: 'Europe', AS: 'Asia', ... }. */
+export const CONTINENT_NAMES: Readonly<Record<ContinentCode, string>>;
+
+/** Map a country (name or 2-letter ISO code) to a continent code. */
+export function countryToContinent(country: string | null | undefined): ContinentCode | null;
+
 /** Common hour options for hourly session selection UI: [1, 2, 4, 8, 12, 24]. */
 export const HOUR_OPTIONS: number[];
 
