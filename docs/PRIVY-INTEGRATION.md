@@ -70,10 +70,50 @@ This is useful when the consumer wants to display the user's `sent1...` address 
 
 The Mode A return value IS a `DirectSecp256k1HdWallet`. The Mode B return value is an `OfflineDirectSigner` — `getAccounts()` + `signDirect(signerAddress, signDoc)`. Either can be passed straight to `SigningStargateClient.connectWithSigner` and to every Sentinel SDK helper that accepts a `wallet`:
 
-- `connect()`, `connectDirect()`, `connectViaPlan()` — VPN session start
-- `disconnect()` — session end
 - `broadcast()`, `broadcastWithFeeGrant()`, `createSafeBroadcaster()` — TX broadcast
 - Operator helpers: `autoLeaseNode()`, `batchLeaseNodes()`, `batchRevokeFeeGrants()`, etc.
+- `SentinelClient` query surface — `getBalance()`, `getClient()`, `listNodes()`, etc.
+
+### Tunnel connect/disconnect — Mode A only (today)
+
+VPN session start (`connect()`, `autoConnect()`, `connectPlan()`) and matching teardown perform a WireGuard/V2Ray handshake with the node. The handshake protocol requires the SDK to sign a small payload with the **raw** secp256k1 privkey **locally**, before any chain TX. That privkey is not available in Mode B — Privy's raw-sign endpoint signs digests but does not export the key.
+
+In short:
+
+| Operation | Mode A (mnemonic) | Mode B (rawSign) |
+|---|---|---|
+| `getBalance()`, `listNodes()`, queries | works | works |
+| `broadcast()`, `broadcastWithFeeGrant()` | works | works |
+| Operator helpers (`autoLeaseNode`, batch*) | works | works |
+| `connect()`, `autoConnect()`, `connectPlan()` | works | **throws** with "VPN connect/disconnect requires a mnemonic" |
+
+A signer-only `SentinelClient` will throw a helpful error from the connect methods rather than failing deep inside the handshake. Lifting this restriction requires either (a) refactoring the handshake to call out to `signRawSecp256k1`, or (b) Privy exposing a "raw secp256k1 sign" endpoint shaped like the cosmjs `Secp256k1.createSignature` signature already accepted in Mode B — both viable, neither in this PR.
+
+## Using `SentinelClient` with Privy
+
+```js
+import { SentinelClient, PrivyCosmosSigner } from 'blue-js-sdk';
+
+// Mode A — full feature set
+const signer = await PrivyCosmosSigner.fromMnemonic({ mnemonic: privyExportedSeed });
+const client = new SentinelClient({
+  signer,
+  rpcUrl: 'https://rpc.sentinel.co',
+  // mnemonic still required for VPN connect — see table above
+  mnemonic: privyExportedSeed,
+});
+const balance = await client.getBalance(); // works
+const conn = await client.autoConnect();   // works (uses mnemonic)
+
+// Mode B — custody-preserving (queries + broadcasts only)
+const custodySigner = await PrivyCosmosSigner.fromRawSign({
+  pubkey: privyDerivedCompressedPubkey,
+  signRawSecp256k1: async (digest32) => privy.signRawHash({ hash: digest32, curve: 'secp256k1' }),
+});
+const queryClient = new SentinelClient({ signer: custodySigner, rpcUrl: 'https://rpc.sentinel.co' });
+await queryClient.getBalance();          // works — queries Privy for the address
+// await queryClient.connect(...);       // throws: requires a mnemonic
+```
 
 ## Unified factory
 
@@ -109,3 +149,11 @@ const signer = await createPrivyCosmosSigner({
 - `signerAddress` mismatch is rejected
 - Unified factory routes correctly and rejects unknown modes
 - Static facade delegates to the underlying functions
+
+`test/privy-client-integration.test.mjs` — 12 assertions covering:
+
+- `SentinelClient({ signer })` — `getWallet()` returns the supplied signer + first account, no mnemonic required
+- `SentinelClient({ mnemonic })` — backwards-compatible path still works
+- `SentinelClient({})` — `getWallet()` throws with a helpful "mnemonic or signer" message
+- `SentinelClient({ signer })` — `connect()`, `autoConnect()`, `connectPlan()` all reject with "requires a mnemonic" pointing to this doc
+- Address parity between `PrivyCosmosSigner(mnemonic)` and `SentinelClient(mnemonic)`
