@@ -89,8 +89,8 @@ async function _disconnectInternal(state, { endSession }) {
 
     if (endSession) {
       // Hard disconnect: broadcast MsgCancelSession — session settles and refunds deposit.
-      if (prev?.sessionId && state._mnemonic) {
-        _endSessionOnChain(prev.sessionId, state._mnemonic).catch(e => {
+      if (prev?.sessionId && state._wallet) {
+        _endSessionOnChain(prev.sessionId, state._wallet).catch(e => {
           console.warn(`[sentinel-sdk] Failed to end session ${prev.sessionId} on chain: ${e.message}`);
         });
       }
@@ -102,7 +102,7 @@ async function _disconnectInternal(state, { endSession }) {
     }
   } finally {
     // ALWAYS clear connection state — even if teardown threw
-    state._mnemonic = null;
+    state._wallet = null;
     state.connection = null;
     clearState();
     clearWalletCache(); // v34: Clear cached wallet objects (private keys) from memory

@@ -82,7 +82,13 @@ export class ConnectionState {
     this.systemProxy = false;
     this.connection = null;  // { nodeAddress, serviceType, sessionId, connectedAt, socksPort? }
     this.savedProxyState = null;
-    this._mnemonic = null;   // Stored for session-end TX on disconnect (zeroed after use)
+    // v37 (security): store the derived OfflineSigner wallet, NOT the raw BIP-39 mnemonic.
+    // Previously _mnemonic held the recovery phrase for the full session lifetime so
+    // that disconnect could sign MsgEndSession. The mnemonic is the highest-value
+    // secret in the SDK — keeping it on a long-lived object enlarged the heap-dump
+    // attack surface unnecessarily. The wallet object holds only the derived signing
+    // key, which is no more sensitive than the privKey buffer we were already keeping.
+    this._wallet = null;     // OfflineSigner — used by _endSessionOnChain on disconnect
     _activeStates.add(this);
   }
   get isConnected() { return !!(this.v2rayProc || this.wgTunnel); }
@@ -216,11 +222,14 @@ export function formatUptime(ms) {
  * End a session on-chain. Best-effort, fire-and-forget.
  * Prevents stale session accumulation on nodes.
  * @param {string|bigint} sessionId - Session ID to end
- * @param {string} mnemonic - BIP39 mnemonic for signing the TX
+ * @param {object} walletObj - { wallet, account } from cachedCreateWallet (NOT the mnemonic).
+ *   Accepting the derived signer instead of the raw phrase keeps the BIP-39 mnemonic
+ *   off the long-lived ConnectionState — see ConnectionState._wallet.
  * @private
  */
-export async function _endSessionOnChain(sessionId, mnemonic) {
-  const { wallet, account } = await cachedCreateWallet(mnemonic);
+export async function _endSessionOnChain(sessionId, walletObj) {
+  if (!walletObj) throw new SentinelError(ErrorCodes.INVALID_OPTIONS, '_endSessionOnChain requires a wallet object');
+  const { wallet, account } = walletObj;
   const client = await tryWithFallback(
     RPC_ENDPOINTS,
     async (url) => createClient(url, wallet),
@@ -261,8 +270,8 @@ export function getStatus() {
     const stale = _defaultState.connection;
     _defaultState.connection = null;
     // End session on chain (fire-and-forget) to prevent stale session leaks
-    if (stale?.sessionId && _defaultState._mnemonic) {
-      _endSessionOnChain(stale.sessionId, _defaultState._mnemonic).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
+    if (stale?.sessionId && _defaultState._wallet) {
+      _endSessionOnChain(stale.sessionId, _defaultState._wallet).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
     }
     clearState();
     events.emit('disconnected', { nodeAddress: stale.nodeAddress, serviceType: stale.serviceType, reason: 'phantom_state' });
@@ -308,8 +317,8 @@ export function getStatus() {
   // clean up stale state. Prevents ghost "connected" status after tunnel dies.
   if (!healthChecks.tunnelActive && !_defaultState.v2rayProc && !_defaultState.wgTunnel) {
     // Both tunnel handles are null — connection state is stale
-    if (conn?.sessionId && _defaultState._mnemonic) {
-      _endSessionOnChain(conn.sessionId, _defaultState._mnemonic).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
+    if (conn?.sessionId && _defaultState._wallet) {
+      _endSessionOnChain(conn.sessionId, _defaultState._wallet).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
     }
     _defaultState.connection = null;
     clearState();
@@ -317,8 +326,8 @@ export function getStatus() {
   }
   if (_defaultState.wgTunnel && !healthChecks.tunnelActive) {
     // WireGuard state says connected but tunnel is dead — auto-cleanup
-    if (conn?.sessionId && _defaultState._mnemonic) {
-      _endSessionOnChain(conn.sessionId, _defaultState._mnemonic).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
+    if (conn?.sessionId && _defaultState._wallet) {
+      _endSessionOnChain(conn.sessionId, _defaultState._wallet).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
     }
     _defaultState.wgTunnel = null;
     _defaultState.connection = null;
@@ -328,8 +337,8 @@ export function getStatus() {
   }
   if (_defaultState.v2rayProc && !healthChecks.tunnelActive) {
     // V2Ray process died — auto-cleanup
-    if (conn?.sessionId && _defaultState._mnemonic) {
-      _endSessionOnChain(conn.sessionId, _defaultState._mnemonic).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
+    if (conn?.sessionId && _defaultState._wallet) {
+      _endSessionOnChain(conn.sessionId, _defaultState._wallet).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
     }
     _defaultState.v2rayProc = null;
     _defaultState.connection = null;
