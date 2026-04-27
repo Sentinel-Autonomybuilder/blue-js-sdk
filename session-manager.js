@@ -329,3 +329,71 @@ export class SessionManager {
     if (this._logger) this._logger(msg);
   }
 }
+
+// ─── Multi-message tx session extraction ─────────────────────────────────────
+
+/**
+ * Extract session IDs keyed by node_address from a multi-message transaction.
+ *
+ * Background: a single tx can carry up to N MsgStartSession messages. The chain
+ * emits a `session_id` per session, but on most chain heights the events do NOT
+ * include `node_address` alongside the `session_id`. Confirmed empirically
+ * 2026-03-23. Naively pairing events to messages by index causes address
+ * mismatch, so any session_id without a colocated node_address is reported as
+ * an "orphan" — the caller MUST resolve it to a node by querying the chain.
+ *
+ * Returns a Map with two non-enumerable hint fields attached:
+ *   - `_orphanIds`        Array<bigint>  session IDs needing chain lookup
+ *   - `_needsChainLookup` boolean        true if any expected node is unmapped
+ *
+ * @param {{ events?: Array }} txResult - Tx broadcast result (RPC or LCD shape)
+ * @param {string[]} [nodeAddrs] - Expected node addresses (used to compute
+ *   `_needsChainLookup`). If omitted, the flag is true whenever orphans exist.
+ * @returns {Map<string, bigint> & { _orphanIds: bigint[], _needsChainLookup: boolean }}
+ *
+ * @example
+ *   const map = extractSessionMap(txResult, batch.map(b => b.node.address));
+ *   if (map._needsChainLookup) {
+ *     for (const sid of map._orphanIds) {
+ *       const session = await querySessionById(client, sid);
+ *       map.set(session.nodeAddress, sid);
+ *     }
+ *   }
+ */
+export function extractSessionMap(txResult, nodeAddrs) {
+  const map = new Map();
+  const orphanIds = [];
+
+  for (const event of (txResult?.events || [])) {
+    if (!/session/i.test(event.type)) continue;
+    let sessionId = null;
+    let nodeAddr = null;
+    for (const attr of (event.attributes || [])) {
+      const k = typeof attr.key === 'string'
+        ? attr.key
+        : Buffer.from(attr.key, 'base64').toString('utf8');
+      const rawV = typeof attr.value === 'string'
+        ? attr.value
+        : Buffer.from(attr.value, 'base64').toString('utf8');
+      const clean = rawV.replace(/"/g, '');
+      if (k === 'session_id' || k === 'id') {
+        try {
+          const id = BigInt(clean);
+          if (id > 0n) sessionId = id;
+        } catch { /* not a numeric id; skip */ }
+      }
+      if (k === 'node_address') nodeAddr = clean;
+    }
+    if (sessionId && nodeAddr) {
+      map.set(nodeAddr, sessionId);
+    } else if (sessionId) {
+      orphanIds.push(sessionId);
+    }
+  }
+
+  // Chain events NEVER include node_address on most heights. Caller resolves.
+  map._orphanIds = orphanIds;
+  map._needsChainLookup = orphanIds.length > 0
+    && map.size < (nodeAddrs?.length || Number.POSITIVE_INFINITY);
+  return map;
+}

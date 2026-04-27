@@ -440,7 +440,7 @@ export {
 
 // ─── Session Manager ─────────────────────────────────────────────────────────
 
-export { SessionManager } from './session-manager.js';
+export { SessionManager, extractSessionMap } from './session-manager.js';
 
 // ─── Batch Session Operations ────────────────────────────────────────────────
 
