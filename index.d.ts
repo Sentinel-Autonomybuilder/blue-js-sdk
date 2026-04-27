@@ -26,6 +26,36 @@ export class TunnelError extends SentinelError {}
 /** Security failures (TLS cert changed, etc.) */
 export class SecurityError extends SentinelError {}
 
+/** Audit/diagnostic failures during node testing. Has `.diag` field. */
+export class AuditError extends SentinelError {
+  diag: Record<string, any>;
+  constructor(message: string, code: string, diag?: Record<string, any>);
+}
+/** WireGuard/V2Ray handshake failed during audit */
+export class HandshakeError extends AuditError {
+  constructor(message: string, diag?: Record<string, any>);
+}
+/** Subscription/plan payment failed during audit */
+export class PaymentError extends AuditError {
+  constructor(message: string, diag?: Record<string, any>);
+}
+/** Active VPN/proxy interfered with audit */
+export class VpnInterferenceError extends AuditError {
+  constructor(message: string, diag?: Record<string, any>);
+}
+/** Node unreachable during audit */
+export class NodeUnreachableError extends AuditError {
+  constructor(message: string, diag?: Record<string, any>);
+}
+/** Insufficient balance to complete audit operation */
+export class InsufficientBalanceError extends AuditError {
+  constructor(message: string, diag?: Record<string, any>);
+}
+/** Speed test failed during audit */
+export class SpeedTestError extends AuditError {
+  constructor(message: string, diag?: Record<string, any>);
+}
+
 /** Machine-readable error codes */
 export const ErrorCodes: {
   INVALID_OPTIONS: 'INVALID_OPTIONS';
@@ -61,6 +91,11 @@ export const ErrorCodes: {
   ALL_NODES_FAILED: 'ALL_NODES_FAILED';
   ALREADY_CONNECTED: 'ALREADY_CONNECTED';
   PARTIAL_CONNECTION_FAILED: 'PARTIAL_CONNECTION_FAILED';
+  HANDSHAKE_FAILED: 'HANDSHAKE_FAILED';
+  PAYMENT_FAILED: 'PAYMENT_FAILED';
+  VPN_INTERFERENCE: 'VPN_INTERFERENCE';
+  NODE_UNREACHABLE: 'NODE_UNREACHABLE';
+  SPEEDTEST_FAILED: 'SPEEDTEST_FAILED';
 };
 
 // ─── TLS Trust (TOFU) ─────────────────────────────────────────────────────
@@ -1090,6 +1125,22 @@ export const SPEEDTEST_DEFAULTS: Readonly<{
   fallbackHosts: ReadonlyArray<{ host: string; path: string; size: number }>;
 }>;
 
+/** Result shape for both checkGoogleDirect and checkGoogleViaSocks5. */
+export interface GoogleCheckResult {
+  googleAccessible: boolean;
+  googleLatencyMs: number | null;
+  googleError: string | null;
+}
+
+/** Resolve www.google.com to an IPv4 address (cached for 5 minutes). */
+export function resolveGoogleIp(): Promise<string | null>;
+
+/** Cheap latency-only check that google.com is reachable through the active tunnel (WireGuard / direct). */
+export function checkGoogleDirect(timeoutMs?: number): Promise<GoogleCheckResult>;
+
+/** Cheap latency-only check that google.com is reachable through a V2Ray SOCKS5 proxy on localhost. */
+export function checkGoogleViaSocks5(proxyPort: number, timeoutMs?: number): Promise<GoogleCheckResult>;
+
 // ─── Plan & Provider Message Encoders ──────────────────────────────────────
 
 export interface PriceParam {
@@ -1301,6 +1352,32 @@ export class SessionManager {
   stop(): void;
 }
 
+/**
+ * Map returned by `extractSessionMap`. Standard Map plus orphan hint fields:
+ *   - `_orphanIds` — session IDs the chain emitted without a node_address
+ *   - `_needsChainLookup` — true when at least one expected node is unmapped
+ */
+export interface SessionExtractionMap extends Map<string, bigint> {
+  _orphanIds: bigint[];
+  _needsChainLookup: boolean;
+}
+
+/**
+ * Extract session IDs keyed by node_address from a multi-message tx.
+ *
+ * Most chain heights emit `session_id` events WITHOUT a colocated `node_address`.
+ * Any such session_id is reported as an orphan in `_orphanIds`; the caller must
+ * resolve it to a node by querying the chain. Pairing by event index is unsafe
+ * and is explicitly avoided.
+ *
+ * @param txResult - Tx broadcast result (RPC or LCD shape)
+ * @param nodeAddrs - Expected node addresses (used to compute `_needsChainLookup`)
+ */
+export function extractSessionMap(
+  txResult: { events?: Array<{ type: string; attributes?: Array<{ key: string; value: string }> }> },
+  nodeAddrs?: string[],
+): SessionExtractionMap;
+
 // ─── Batch Session Operations ──────────────────────────────────────────────
 
 /** Start sessions on multiple nodes in one batch TX. */
@@ -1498,6 +1575,18 @@ interface CountryGroup {
 /** Group nodes by country for sidebar display. Sorted by online count, unknown last. */
 export function groupNodesByCountry(nodes: NodeDisplay[]): CountryGroup[];
 
+/** Continent code: EU/AS/NA/SA/AF/OC/AN/ZZ (Antarctica/Unknown for completeness). */
+export type ContinentCode = 'EU' | 'AS' | 'NA' | 'SA' | 'AF' | 'OC' | 'AN' | 'ZZ';
+
+/** Map of ISO 3166-1 alpha-2 country codes → continent codes. */
+export const CONTINENT_BY_CODE: Readonly<Record<string, ContinentCode>>;
+
+/** Display names keyed by continent code: { EU: 'Europe', AS: 'Asia', ... }. */
+export const CONTINENT_NAMES: Readonly<Record<ContinentCode, string>>;
+
+/** Map a country (name or 2-letter ISO code) to a continent code. */
+export function countryToContinent(country: string | null | undefined): ContinentCode | null;
+
 /** Common hour options for hourly session selection UI: [1, 2, 4, 8, 12, 24]. */
 export const HOUR_OPTIONS: number[];
 
@@ -1545,8 +1634,12 @@ export class ConnectionState {
   connection: any;
   systemProxy: boolean;
   savedProxyState: any;
-  /** @internal Stored for session-end TX on disconnect. Cleared after use. */
-  _mnemonic: string | null;
+  /**
+   * @internal Derived OfflineSigner wallet, used by _endSessionOnChain on disconnect.
+   * v37 (security): replaced `_mnemonic: string | null`. The raw BIP-39 phrase is no
+   * longer kept on long-lived state — see ConnectionState in connection/state.js.
+   */
+  _wallet: any;
   readonly isConnected: boolean;
   destroy(): void;
 }

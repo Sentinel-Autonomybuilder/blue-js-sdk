@@ -99,13 +99,17 @@ async function connectInternal(opts, paymentStrategy, retryStrategy, state = _de
   // v21: parallelized — saves ~300ms (was sequential)
   progress(onProgress, logFn, 'wallet', 'Setting up wallet...');
   checkAborted(signal);
-  const [{ wallet, account }, privKey] = await Promise.all([
+  const [walletResult, privKey] = await Promise.all([
     cachedCreateWallet(opts.mnemonic),
     privKeyFromMnemonic(opts.mnemonic),
   ]);
+  const { wallet, account } = walletResult;
 
-  // Store mnemonic on state for session-end TX on disconnect (fire-and-forget cleanup)
-  state._mnemonic = opts.mnemonic;
+  // v37 (security): store the derived OfflineSigner — NOT the BIP-39 mnemonic.
+  // _endSessionOnChain only needs to sign one TX on disconnect; it doesn't need
+  // the recovery phrase. Holding the mnemonic in heap for the full session
+  // expanded the heap-dump attack surface unnecessarily.
+  state._wallet = walletResult;
 
   // 2. RPC connect + LCD lookup in parallel (independent network calls)
   // v21: parallelized — saves 1-3s (was sequential)
@@ -381,9 +385,12 @@ export async function connectDirect(opts) {
 
   // ── Fast Reconnect: check for saved credentials ──
   if (!forceNewSession) {
-    // Set mnemonic on state BEFORE fast reconnect — needed for _endSessionOnChain() on disconnect
-    (opts._state || _defaultState)._mnemonic = opts.mnemonic;
-    const fast = await tryFastReconnect(opts, opts._state || _defaultState);
+    // v37: Derive wallet BEFORE fast reconnect and stash on state — _endSessionOnChain()
+    // needs the signer, not the mnemonic. Same wallet object is reused by connectInternal()
+    // below if fast reconnect misses (cachedCreateWallet keys on mnemonic SHA256).
+    const fastState = opts._state || _defaultState;
+    fastState._wallet = await cachedCreateWallet(opts.mnemonic);
+    const fast = await tryFastReconnect(opts, fastState);
     if (fast) {
       clearCircuitBreaker(opts.nodeAddress);
       return fast;
@@ -405,7 +412,10 @@ export async function connectDirect(opts) {
         // lower-ID sessions before MsgStartSession — mirrors C# SessionManager dedup pattern.
         onStaleDuplicate: (staleId) => {
           logFn?.(`[connect] Cancelling stale duplicate session ${staleId} on ${opts.nodeAddress}...`);
-          _endSessionOnChain(staleId, opts.mnemonic).catch(e => {
+          // v37: pass the derived wallet (set on state above) instead of the mnemonic
+          const w = (opts._state || _defaultState)._wallet;
+          if (!w) { logFn?.(`[connect] No wallet on state — skipping stale session ${staleId} cleanup`); return; }
+          _endSessionOnChain(staleId, w).catch(e => {
             logFn?.(`[connect] Failed to cancel stale session ${staleId}: ${e.message}`);
           });
         },

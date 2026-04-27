@@ -142,6 +142,33 @@ export function createSafeBroadcaster(rpcUrl, wallet, signerAddress) {
   return { safeBroadcast, getClient, resetClient };
 }
 
+// ─── Shared Broadcast Pool (per-key serialization) ──────────────────────────
+// For servers handling multiple concurrent wallets. Each wallet address gets
+// its own queue so wallet A's TX never blocks wallet B. Single-wallet
+// consumers (CLI tools) can pass any string as key — behavior is identical
+// to a single-instance createSafeBroadcaster.
+
+const _globalQueues = new Map();
+
+/**
+ * Serialize a broadcast behind a per-key queue without creating a full
+ * createSafeBroadcaster instance. Useful when the caller already has a
+ * signing client and only needs sequence-safe serialization per wallet.
+ *
+ * @param {string} key - Wallet address (or any unique string per logical sender)
+ * @param {() => Promise<any>} fn - Async function to serialize
+ * @returns {Promise<any>}
+ */
+export function withBroadcastQueue(key, fn) {
+  const prev = _globalQueues.get(key) ?? Promise.resolve();
+  const p = prev.then(fn);
+  _globalQueues.set(key, p.catch(() => {}));
+  p.finally(() => {
+    if (_globalQueues.get(key) === p) _globalQueues.delete(key);
+  });
+  return p;
+}
+
 /**
  * Broadcast a TX with fee paid by a granter (fee grant).
  * The grantee signs; the granter pays gas via their fee allowance.

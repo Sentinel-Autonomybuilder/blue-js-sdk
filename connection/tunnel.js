@@ -389,12 +389,12 @@ async function setupWireGuard({ remoteUrl, sessionId, privKey, fullTunnel, split
       if (isKillSwitchEnabled()) disableKillSwitch();
       try { await disconnectWireGuard(); } catch {} // tunnel may already be down
       // End session on chain (fire-and-forget)
-      if (sessionIdStr && state._mnemonic) {
-        _endSessionOnChain(sessionIdStr, state._mnemonic).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
+      if (sessionIdStr && state._wallet) {
+        _endSessionOnChain(sessionIdStr, state._wallet).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
       }
       state.wgTunnel = null;
       state.connection = null;
-      state._mnemonic = null;
+      state._wallet = null;
       clearState();
     },
   };
@@ -653,11 +653,11 @@ async function setupV2Ray({ remoteUrl, serverHost, sessionId, privKey, v2rayExeP
       if (state.v2rayProc) { state.v2rayProc.kill(); state.v2rayProc = null; await sleep(500); }
       if (state.systemProxy) clearSystemProxy();
       // End session on chain (fire-and-forget)
-      if (sessionIdStr && state._mnemonic) {
-        _endSessionOnChain(sessionIdStr, state._mnemonic).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
+      if (sessionIdStr && state._wallet) {
+        _endSessionOnChain(sessionIdStr, state._wallet).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
       }
       state.connection = null;
-      state._mnemonic = null;
+      state._wallet = null;
       clearState();
     },
   };

@@ -72,6 +72,15 @@ export const COUNTRY_MAP = Object.freeze({
   'pr': 'PR', 'cn': 'CN', 'sa': 'SA', 'kz': 'KZ', 'mn': 'MN', 'sk': 'SK',
   'al': 'AL', 'md': 'MD', 'jm': 'JM', 'bo': 'BO', 'ec': 'EC', 'uy': 'UY',
   'bh': 'BH', 'cd': 'CD',
+
+  // Central Asia
+  'kyrgyzstan': 'KG', 'uzbekistan': 'UZ', 'tajikistan': 'TJ',
+  'kg': 'KG', 'uz': 'UZ', 'tj': 'TJ',
+
+  // Balkans
+  'bosnia and herzegovina': 'BA', 'north macedonia': 'MK', 'montenegro': 'ME',
+  'kosovo': 'XK', 'slovenia': 'SI',
+  'ba': 'BA', 'mk': 'MK', 'me': 'ME', 'xk': 'XK', 'si': 'SI',
 });
 
 /**
@@ -284,6 +293,52 @@ export function groupNodesByCountry(nodes) {
     if (b.countryCode === 'ZZ') return -1;
     return b.onlineCount - a.onlineCount;
   });
+}
+
+// ─── Country → Continent Map ────────────────────────────────────────────────
+// Continent classification for every ISO code present in COUNTRY_MAP.
+// Codes follow ISO 3166-1 alpha-2 regions: EU/AS/NA/SA/AF/OC (+ AN, ZZ).
+
+export const CONTINENT_BY_CODE = Object.freeze({
+  // Europe
+  DE: 'EU', FR: 'EU', GB: 'EU', NL: 'EU', ES: 'EU', IT: 'EU', SE: 'EU', NO: 'EU',
+  FI: 'EU', CH: 'EU', AT: 'EU', IE: 'EU', PT: 'EU', CZ: 'EU', HU: 'EU', BG: 'EU',
+  GR: 'EU', UA: 'EU', RU: 'EU', RO: 'EU', PL: 'EU', TR: 'EU', LV: 'EU', LT: 'EU',
+  EE: 'EU', HR: 'EU', RS: 'EU', DK: 'EU', BE: 'EU', LU: 'EU', MT: 'EU', CY: 'EU',
+  IS: 'EU', SK: 'EU', AL: 'EU', MD: 'EU', BA: 'EU', MK: 'EU', ME: 'EU', XK: 'EU',
+  SI: 'EU', GE: 'EU',
+  // Asia
+  JP: 'AS', SG: 'AS', IN: 'AS', KR: 'AS', HK: 'AS', TW: 'AS', TH: 'AS', VN: 'AS',
+  ID: 'AS', PH: 'AS', MY: 'AS', BD: 'AS', PK: 'AS', CN: 'AS', SA: 'AS', KZ: 'AS',
+  MN: 'AS', IL: 'AS', AE: 'AS', KG: 'AS', UZ: 'AS', TJ: 'AS', BH: 'AS',
+  // North America
+  US: 'NA', CA: 'NA', MX: 'NA', GT: 'NA', PR: 'NA', JM: 'NA', CR: 'NA', PA: 'NA',
+  DO: 'NA', SV: 'NA', HN: 'NA', NI: 'NA', CU: 'NA', HT: 'NA', TT: 'NA',
+  // South America
+  BR: 'SA', AR: 'SA', CL: 'SA', CO: 'SA', PE: 'SA', VE: 'SA', BO: 'SA', EC: 'SA',
+  UY: 'SA', PY: 'SA',
+  // Africa
+  ZA: 'AF', NG: 'AF', EG: 'AF', KE: 'AF', MA: 'AF', CD: 'AF',
+  // Oceania
+  AU: 'OC', NZ: 'OC',
+});
+
+export const CONTINENT_NAMES = Object.freeze({
+  EU: 'Europe', AS: 'Asia', NA: 'North America', SA: 'South America',
+  AF: 'Africa', OC: 'Oceania', AN: 'Antarctica', ZZ: 'Unknown',
+});
+
+/**
+ * Map a country (name or ISO code) to a continent code.
+ *
+ * @param {string} country - Country name (any variant in COUNTRY_MAP) or 2-letter ISO code
+ * @returns {string|null} 'EU' | 'AS' | 'NA' | 'SA' | 'AF' | 'OC' | null
+ */
+export function countryToContinent(country) {
+  if (!country) return null;
+  const code = country.length === 2 ? country.toUpperCase() : countryNameToCode(country);
+  if (!code) return null;
+  return CONTINENT_BY_CODE[code] || null;
 }
 
 // ─── Session Duration Helpers ───────────────────────────────────────────────
