@@ -150,6 +150,24 @@ const signer = await createPrivyCosmosSigner({
 - Unified factory routes correctly and rejects unknown modes
 - Static facade delegates to the underlying functions
 
+### Run the offline suite (CI-safe)
+
+```sh
+npm run test:privy   # 32 assertions, no network
+```
+
+### Run the live suites (require credentials, NOT in CI)
+
+```sh
+# Mainnet broadcast — proves Sentinel chain accepts adapter signatures.
+# Sends a 1 udvpn self-MsgSend; needs ~20000 udvpn for fee.
+MNEMONIC="..." npm run test:privy:live
+
+# Real Privy API — creates a server-managed Cosmos wallet on Privy and proves
+# the bytes Privy's /raw_sign returns verify against the Privy-derived pubkey.
+PRIVY_APP_ID="..." PRIVY_APP_SECRET="..." npm run test:privy:server
+```
+
 `test/privy-client-integration.test.mjs` — 12 assertions covering:
 
 - `SentinelClient({ signer })` — `getWallet()` returns the supplied signer + first account, no mnemonic required
