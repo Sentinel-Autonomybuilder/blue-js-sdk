@@ -15,7 +15,7 @@
  *   import { buildKeplrSignDoc, broadcastSignedKeplrTx } from './auth/keplr-signdoc.js';
  */
 
-import { TxBody, TxRaw } from 'cosmjs-types/cosmos/tx/v1beta1/tx';
+import { TxBody, TxRaw } from 'cosmjs-types/cosmos/tx/v1beta1/tx.js';
 import { makeAuthInfoBytes } from '@cosmjs/proto-signing';
 import Long from 'long';
 
