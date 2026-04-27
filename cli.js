@@ -116,7 +116,7 @@ Sentinel SDK CLI — command-line tools for Sentinel dVPN
 
 WALLET
   balance                          Show wallet balance
-  generate                         Generate new mnemonic + address
+  generate [--out <path>]          Generate new mnemonic + address (mnemonic to stderr or 0600 file)
   address                          Show wallet address + provider address
 
 NODES
@@ -177,7 +177,9 @@ Options:
   --dns <preset>    DNS preset: handshake (default), google, cloudflare, or custom IPs
 
 Environment:
-  MNEMONIC          BIP39 mnemonic phrase (in .env file)
+  MNEMONIC          BIP39 mnemonic phrase. Prefer a 0600 file or OS keychain
+                    over .env: .env files are world-readable to processes
+                    running as the same user and are easy to commit by accident.
 `);
   },
 
@@ -192,9 +194,28 @@ Environment:
 
   async generate() {
     const { mnemonic, account } = await generateWallet();
-    console.log(`Mnemonic: ${mnemonic}`);
-    console.log(`Address:  ${account.address}`);
-    console.log(`\nSave the mnemonic in your .env file as MNEMONIC="..."`);
+    const out = flag('out', null);
+
+    if (out) {
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+      const target = path.resolve(out);
+      fs.writeFileSync(target, mnemonic + '\n', { mode: 0o600 });
+      try { fs.chmodSync(target, 0o600); } catch {}
+      process.stdout.write(`Address:  ${account.address}\n`);
+      process.stderr.write(`\nMnemonic written to ${target} (mode 0600).\n`);
+      process.stderr.write(`Store this file offline — anyone who reads it controls the wallet.\n`);
+      return;
+    }
+
+    // Interactive path: print to stderr (not stdout) so the phrase does not
+    // land in shell pipelines, redirected log files, or CI stdout capture.
+    // Address goes to stdout because callers pipe it into automation safely.
+    process.stdout.write(`Address:  ${account.address}\n`);
+    process.stderr.write(`\n*** RECOVERY PHRASE — DO NOT LOG, DO NOT COMMIT ***\n`);
+    process.stderr.write(`Mnemonic: ${mnemonic}\n`);
+    process.stderr.write(`\nStore the phrase offline (hardware wallet, paper, encrypted vault).\n`);
+    process.stderr.write(`Pass --out <path> next time to write a 0600 file instead of printing.\n`);
   },
 
   async address() {
