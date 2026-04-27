@@ -518,3 +518,15 @@ export {
   reorderOutbounds,
   getCacheStats,
 } from './audit.js';
+
+// ─── Auth Utilities (ADR-36, Keplr) ─────────────────────────────────────────
+
+export {
+  sortedJsonStringify,
+  verifyAdr36Signature,
+} from './auth/adr36.js';
+
+export {
+  buildKeplrSignDoc,
+  broadcastSignedKeplrTx,
+} from './auth/keplr-signdoc.js';
