@@ -74,6 +74,8 @@ import {
   getProviderByAddress as _getProviderByAddress,
   queryPlanSubscribers as _queryPlanSubscribers,
   getPlanStats as _getPlanStats,
+  queryPlanDetails as _queryPlanDetails,
+  isActiveStatus as _isActiveStatus,
   querySubscriptionAllocations as _querySubscriptionAllocations,
   queryAuthzGrants as _queryAuthzGrants,
   loadVpnSettings as _loadVpnSettings,
@@ -83,6 +85,7 @@ import {
   queryFeeGrants as _queryFeeGrants,
   queryFeeGrantsIssued as _queryFeeGrantsIssued,
   queryFeeGrant as _queryFeeGrant,
+  checkFeeGrant as _checkFeeGrant,
   grantPlanSubscribers as _grantPlanSubscribers,
   getExpiringGrants as _getExpiringGrants,
   renewExpiringGrants as _renewExpiringGrants,
@@ -813,6 +816,20 @@ export async function queryFeeGrant(lcdUrl, granter, grantee) {
 }
 
 /**
+ * Builder-friendly parsed fee-grant status — exists, expired, expiresAt,
+ * spendLimit, allowedMessages. RPC-first with LCD fallback. Use before
+ * broadcasting plan/subscription session TXs that rely on a fee granter.
+ *
+ * @param {string} lcdUrl
+ * @param {string} granter
+ * @param {string} grantee
+ * @returns {Promise<{ exists: boolean, expired: boolean, expiresAt: Date|null, spendLimit: Array<{denom:string,amount:string}>, allowedMessages: string[]|null, typeUrl: string, raw: object|null }>}
+ */
+export async function checkFeeGrant(lcdUrl, granter, grantee) {
+  return _checkFeeGrant(lcdUrl, granter, grantee);
+}
+
+/**
  * Broadcast a TX with fee paid by a granter (fee grant).
  * The grantee signs; the granter pays gas via their fee allowance.
  * @param {SigningStargateClient} client - Client with grantee's wallet
@@ -951,6 +968,29 @@ export async function queryPlanSubscribers(planId, opts = {}) {
  */
 export async function getPlanStats(planId, ownerAddress, opts = {}) {
   return _getPlanStats(planId, ownerAddress, opts);
+}
+
+/**
+ * Query a plan's on-chain metadata (provider, prices, duration, status).
+ * RPC-first with LCD fallback. Returns null if the plan does not exist.
+ *
+ * @param {number|string} planId
+ * @param {object} [opts]
+ * @param {string} [opts.lcdUrl]
+ * @returns {Promise<{ planId: string, provider: string, prices: Array, bytes: string, duration: string, status: number, statusAt: string|null, private: boolean } | null>}
+ */
+export async function queryPlanDetails(planId, opts = {}) {
+  return _queryPlanDetails(planId, opts);
+}
+
+/**
+ * Normalize chain status values. Returns true only for active status
+ * (never for transient INACTIVE_PENDING / status=3).
+ * @param {number|string|undefined} v
+ * @returns {boolean}
+ */
+export function isActiveStatus(v) {
+  return _isActiveStatus(v);
 }
 
 // ─── Fee Grant Workflow Helpers (v25b) ────────────────────────────────────────
@@ -1147,6 +1187,8 @@ export async function querySubscription(id, lcdUrl) {
 export async function hasActiveSubscription(address, planId, lcdUrl) {
   return _hasActiveSubscription(address, planId, lcdUrl);
 }
+
+
 
 // ─── v26c: Display Helpers ───────────────────────────────────────────────────
 

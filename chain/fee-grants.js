@@ -185,6 +185,62 @@ export async function queryFeeGrant(lcdUrl, granter, grantee) {
   } catch { return null; } // 404 = no grant
 }
 
+/**
+ * Builder-friendly fee-grant check. Returns a parsed, normalized status so
+ * callers don't have to walk nested `AllowedMsgAllowance` → `BasicAllowance`
+ * shapes. Use this before broadcasting plan/subscription sessions that rely on
+ * a granter paying gas.
+ *
+ * RPC-first with LCD fallback. Either both granter+grantee, or pre-fetched
+ * allowance object can be passed.
+ *
+ * @param {string} lcdUrl - LCD endpoint (for fallback)
+ * @param {string} granter - sent1... granter address
+ * @param {string} grantee - sent1... grantee address
+ * @returns {Promise<{ exists: boolean, expired: boolean, expiresAt: Date|null, spendLimit: Array<{denom:string,amount:string}>, allowedMessages: string[]|null, typeUrl: string, raw: object|null }>}
+ */
+export async function checkFeeGrant(lcdUrl, granter, grantee) {
+  const allowance = await queryFeeGrant(lcdUrl, granter, grantee);
+  if (!allowance) {
+    return {
+      exists: false,
+      expired: false,
+      expiresAt: null,
+      spendLimit: [],
+      allowedMessages: null,
+      typeUrl: '',
+      raw: null,
+    };
+  }
+
+  // If shape is { granter, grantee, allowance: {...} } from rpcQueryFeeGrant
+  const inner = allowance.allowance || allowance;
+  const typeUrl = inner['@type'] || '';
+  let basic = inner;
+  let allowedMessages = null;
+  if (typeUrl.includes('AllowedMsgAllowance')) {
+    allowedMessages = inner.allowed_messages || [];
+    basic = inner.allowance || null;
+  }
+
+  const spendLimit = (basic?.spend_limit || []).map(c => ({
+    denom: c.denom,
+    amount: String(c.amount || '0'),
+  }));
+  const expiresAt = basic?.expiration ? new Date(basic.expiration) : null;
+  const expired = expiresAt ? expiresAt.getTime() <= Date.now() : false;
+
+  return {
+    exists: true,
+    expired,
+    expiresAt,
+    spendLimit,
+    allowedMessages,
+    typeUrl,
+    raw: allowance,
+  };
+}
+
 // ─── Fee Grant Workflow Helpers (v25b) ────────────────────────────────────────
 
 /**
@@ -194,19 +250,26 @@ export async function queryFeeGrant(lcdUrl, granter, grantee) {
  * @param {number|string} planId
  * @param {object} opts
  * @param {string} opts.granterAddress - Who pays fees (typically plan owner)
- * @param {string} opts.lcdUrl - LCD endpoint
+ * @param {string} [opts.lcdUrl] - LCD endpoint (used as fallback when RPC unavailable)
+ * @param {boolean} [opts.preferRpc=true] - Force RPC for all queries, skip LCD URL for grant lookup
+ * @param {object} [opts.rpcClient] - Pre-built RPC client to inject (skips internal createRpcQueryClientWithFallback)
  * @param {object} [opts.grantOpts] - Options for buildFeeGrantMsg (spendLimit, expiration, allowedMessages)
  * @returns {Promise<{ msgs: Array, skipped: string[], newGrants: string[] }>} Messages ready for broadcast
  */
 export async function grantPlanSubscribers(planId, opts = {}) {
-  const { granterAddress, lcdUrl, grantOpts = {} } = opts;
+  const { granterAddress, lcdUrl, preferRpc = true, rpcClient, grantOpts = {} } = opts;
   if (!granterAddress) throw new ValidationError(ErrorCodes.INVALID_OPTIONS, 'granterAddress is required');
 
-  // Get subscribers
+  // Get subscribers — already RPC-first internally
   const { subscribers } = await queryPlanSubscribers(planId, { lcdUrl });
 
-  // Get existing grants ISSUED BY granter (not grants received)
-  const existingGrants = await queryFeeGrantsIssued(lcdUrl || LCD_ENDPOINTS[0].url, granterAddress);
+  // Get existing grants ISSUED BY granter.
+  // preferRpc=true: pass null lcdUrl so internal getRpcClient() path is taken first.
+  // preferRpc=false: pass lcdUrl so LCD is used (useful when RPC is blocked).
+  const grantLcdUrl = preferRpc ? null : (lcdUrl || LCD_ENDPOINTS[0].url);
+  const existingGrants = rpcClient
+    ? await _rpcQueryFeeGrantsIssued(rpcClient, granterAddress).catch(() => queryFeeGrantsIssued(grantLcdUrl, granterAddress))
+    : await queryFeeGrantsIssued(grantLcdUrl, granterAddress);
   const alreadyGranted = new Set(existingGrants.map(g => g.grantee));
 
   const msgs = [];
@@ -375,7 +438,9 @@ export function monitorFeeGrants(opts = {}) {
  * @param {number|string} planId
  * @param {object} opts
  * @param {string} opts.granterAddress - Plan owner paying fees
- * @param {string} opts.lcdUrl - LCD endpoint
+ * @param {string} [opts.lcdUrl] - LCD endpoint (used as fallback when RPC unavailable)
+ * @param {boolean} [opts.preferRpc=true] - Force RPC for all queries, skip LCD URL for grant lookup
+ * @param {object} [opts.rpcClient] - Pre-built RPC client to inject (skips internal createRpcQueryClientWithFallback)
  * @param {(msgs: Array, memo: string) => Promise<{code:number, rawLog?:string, transactionHash?:string}>} opts.broadcast
  * @param {object} [opts.grantOpts] - { spendLimit, expiration } for BasicAllowance
  * @param {number} [opts.batchSize=5] - Msgs per TX
@@ -386,6 +451,8 @@ export async function* streamGrantPlanSubscribers(planId, opts = {}) {
   const {
     granterAddress,
     lcdUrl,
+    preferRpc = true,
+    rpcClient,
     broadcast,
     grantOpts = {},
     batchSize = 5,
@@ -416,7 +483,10 @@ export async function* streamGrantPlanSubscribers(planId, opts = {}) {
     }
 
     yield { type: 'status', msg: 'Checking existing grants...' };
-    const existing = await queryFeeGrantsIssued(lcdUrl || LCD_ENDPOINTS[0].url, granterAddress);
+    const streamLcdUrl = preferRpc ? null : (lcdUrl || LCD_ENDPOINTS[0].url);
+    const existing = rpcClient
+      ? await _rpcQueryFeeGrantsIssued(rpcClient, granterAddress).catch(() => queryFeeGrantsIssued(streamLcdUrl, granterAddress))
+      : await queryFeeGrantsIssued(streamLcdUrl, granterAddress);
     const existingGrantees = new Set(existing.map(g => g.grantee));
     const needGrant = uniqueAddrs.filter(a => !existingGrantees.has(a));
     const skipped = uniqueAddrs.length - needGrant.length;

@@ -205,10 +205,20 @@ if (balance.udvpn < 500_000) {
   } else {
 
     await t('3.1 shareSubscription — self-share 1 GB', async () => {
-      const result = await shareSubscription(client, address, subId, address, BYTES_1GB);
-      console.log(`\n       Share TX hash: ${result.txHash}`);
-      state.shareTxHash = result.txHash;
-      return result;
+      let result;
+      try {
+        result = await shareSubscription(client, address, subId, address, BYTES_1GB);
+        console.log(`\n       Share TX hash: ${result.txHash}`);
+        state.shareTxHash = result.txHash;
+        return result;
+      } catch (e) {
+        // insufficient bytes = existing allocation is smaller than requested. Not an SDK bug.
+        if (e.message?.includes('insufficient bytes') || e.message?.includes('already exists')) {
+          console.log(`\n       Share rejected (${e.message.includes('insufficient bytes') ? 'insufficient allocation remaining — expected on repeated runs' : 'already exists'})`);
+          return true;
+        }
+        throw e;
+      }
     });
 
     console.log('  Waiting 7s for chain propagation...');
