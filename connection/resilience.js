@@ -30,6 +30,11 @@ import { findV2RayExe } from './tunnel.js';
 import { enableKillSwitch, isKillSwitchEnabled as _isKillSwitchEnabled } from './security.js';
 import { setSystemProxy, clearSystemProxy, checkPortFree } from './proxy.js';
 import { connectAuto, connectViaSubscription, connectViaPlan } from './connect.js';
+import { withMnemonicRedaction } from './logger.js';
+
+// Default logger wraps console.log so any 12–24 word BIP-39 phrase that ends
+// up in a log argument is replaced before reaching stdout. See connection/logger.js.
+const defaultLog = withMnemonicRedaction(console.log);
 
 // ─── Circuit Breaker ─────────────────────────────────────────────────────────
 // v22: Skip nodes that repeatedly fail. Resets after TTL expires.
@@ -108,7 +113,7 @@ export async function tryFastReconnect(opts, state = _defaultState) {
   if (!saved) return null;
 
   const onProgress = opts.onProgress || null;
-  const logFn = opts.log || console.log;
+  const logFn = opts.log || defaultLog;
   const fullTunnel = opts.fullTunnel !== false;
   const killSwitch = opts.killSwitch === true;
   const systemProxy = opts.systemProxy === true;
