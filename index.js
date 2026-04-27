@@ -322,6 +322,7 @@ export {
   shareSubscription,
   shareSubscriptionWithFeeGrant,
   onboardPlanUser,
+  withBroadcastQueue,
 } from './chain/broadcast.js';
 
 export {
