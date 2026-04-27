@@ -26,6 +26,36 @@ export class TunnelError extends SentinelError {}
 /** Security failures (TLS cert changed, etc.) */
 export class SecurityError extends SentinelError {}
 
+/** Audit/diagnostic failures during node testing. Has `.diag` field. */
+export class AuditError extends SentinelError {
+  diag: Record<string, any>;
+  constructor(message: string, code: string, diag?: Record<string, any>);
+}
+/** WireGuard/V2Ray handshake failed during audit */
+export class HandshakeError extends AuditError {
+  constructor(message: string, diag?: Record<string, any>);
+}
+/** Subscription/plan payment failed during audit */
+export class PaymentError extends AuditError {
+  constructor(message: string, diag?: Record<string, any>);
+}
+/** Active VPN/proxy interfered with audit */
+export class VpnInterferenceError extends AuditError {
+  constructor(message: string, diag?: Record<string, any>);
+}
+/** Node unreachable during audit */
+export class NodeUnreachableError extends AuditError {
+  constructor(message: string, diag?: Record<string, any>);
+}
+/** Insufficient balance to complete audit operation */
+export class InsufficientBalanceError extends AuditError {
+  constructor(message: string, diag?: Record<string, any>);
+}
+/** Speed test failed during audit */
+export class SpeedTestError extends AuditError {
+  constructor(message: string, diag?: Record<string, any>);
+}
+
 /** Machine-readable error codes */
 export const ErrorCodes: {
   INVALID_OPTIONS: 'INVALID_OPTIONS';
@@ -61,6 +91,11 @@ export const ErrorCodes: {
   ALL_NODES_FAILED: 'ALL_NODES_FAILED';
   ALREADY_CONNECTED: 'ALREADY_CONNECTED';
   PARTIAL_CONNECTION_FAILED: 'PARTIAL_CONNECTION_FAILED';
+  HANDSHAKE_FAILED: 'HANDSHAKE_FAILED';
+  PAYMENT_FAILED: 'PAYMENT_FAILED';
+  VPN_INTERFERENCE: 'VPN_INTERFERENCE';
+  NODE_UNREACHABLE: 'NODE_UNREACHABLE';
+  SPEEDTEST_FAILED: 'SPEEDTEST_FAILED';
 };
 
 // ─── TLS Trust (TOFU) ─────────────────────────────────────────────────────
