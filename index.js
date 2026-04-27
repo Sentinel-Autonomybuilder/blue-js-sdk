@@ -502,6 +502,13 @@ export {
   computeSessionAllocation,
 } from './app-helpers.js';
 
+// ─── Auth Utilities (ADR-36, Keplr) ─────────────────────────────────────────
+
+export {
+  sortedJsonStringify,
+  verifyAdr36Signature,
+} from './auth/adr36.js';
+
 // ─── Instantiable Client Class ───────────────────────────────────────────────
 
 export { SentinelClient } from './client.js';
