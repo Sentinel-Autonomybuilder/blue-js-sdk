@@ -565,3 +565,142 @@ export function compareSpeedTests(before, after) {
   };
 }
 
+// ─── Post-Tunnel Google Accessibility Checks ────────────────────────────────
+//
+// Some nodes route Cloudflare fine but block Google (region-specific egress
+// filtering). Speedtest passing != general internet works. These helpers do
+// a cheap, latency-only HTTPS hit against `google.com` after the tunnel is
+// up — useful as a fast pre-flight before a full speedtest, or as a separate
+// "general internet works" signal in audit results.
+//
+// Two flavors:
+//   - checkGoogleDirect:    for tunnels where all traffic is tunneled (WireGuard)
+//   - checkGoogleViaSocks5: for tunnels where traffic goes via local SOCKS5 (V2Ray)
+//
+// Direct check uses an external resolver (8.8.8.8 / 1.1.1.1) to resolve
+// `www.google.com` BEFORE the tunnel may have working DNS, then issues HTTPS
+// to the IP with `Host: www.google.com` + SNI. Works on tunnels that don't
+// route DNS or that point to dead resolvers.
+
+const GOOGLE_HOST = 'www.google.com';
+const GOOGLE_DNS_CACHE_TTL = 5 * 60_000;
+let cachedGoogleIp = null;
+let cachedGoogleTime = 0;
+
+/**
+ * Resolve `www.google.com` to an A record using public resolvers, with
+ * fallback to the system resolver and finally `dns.lookup`. Result is cached
+ * for {@link GOOGLE_DNS_CACHE_TTL} ms across calls in the same process.
+ *
+ * @returns {Promise<string|null>} IPv4 address or null if every resolver failed
+ */
+export async function resolveGoogleIp() {
+  if (cachedGoogleIp && Date.now() - cachedGoogleTime < GOOGLE_DNS_CACHE_TTL) return cachedGoogleIp;
+  try {
+    const resolver = new dns.Resolver();
+    resolver.setServers(['8.8.8.8', '1.1.1.1']);
+    const addrs = await new Promise((resolve, reject) => {
+      resolver.resolve4(GOOGLE_HOST, (err, addresses) => err ? reject(err) : resolve(addresses));
+    });
+    if (addrs.length > 0) { cachedGoogleIp = addrs[0]; cachedGoogleTime = Date.now(); return cachedGoogleIp; }
+  } catch { }
+  try {
+    const addrs = await dns.promises.resolve4(GOOGLE_HOST);
+    if (addrs.length > 0) { cachedGoogleIp = addrs[0]; cachedGoogleTime = Date.now(); return cachedGoogleIp; }
+  } catch { }
+  try {
+    const { address } = await dns.promises.lookup(GOOGLE_HOST);
+    cachedGoogleIp = address;
+    cachedGoogleTime = Date.now();
+    return cachedGoogleIp;
+  } catch { }
+  return null;
+}
+
+/**
+ * Check if `google.com` is reachable through the ambient network path
+ * (typically a WireGuard tunnel where all traffic is tunneled). Tries the
+ * resolved IP first (with `Host` header + SNI), then falls back to the
+ * hostname directly. Any successful TLS handshake counts as reachable.
+ *
+ * @param {number} [timeoutMs=10000]
+ * @returns {Promise<{ googleAccessible: boolean, googleLatencyMs: number|null, googleError: string|null }>}
+ */
+export async function checkGoogleDirect(timeoutMs = 10_000) {
+  const start = Date.now();
+  const targetIp = await resolveGoogleIp();
+  const targets = [];
+  if (targetIp) targets.push(`https://${targetIp}/`);
+  targets.push(`https://${GOOGLE_HOST}/`);
+
+  for (const url of targets) {
+    try {
+      await new Promise((resolve, reject) => {
+        const parsed = new URL(url);
+        const options = {
+          hostname: parsed.hostname,
+          path: '/',
+          method: 'GET',
+          rejectUnauthorized: false,
+          agent: false,
+          headers: { Host: GOOGLE_HOST },
+          servername: GOOGLE_HOST,
+        };
+        const req = https.get(options, (res) => {
+          res.destroy();
+          resolve();
+        });
+        req.on('error', reject);
+        req.setTimeout(timeoutMs, () => { req.destroy(); reject(new Error('timeout')); });
+      });
+      return {
+        googleAccessible: true,
+        googleLatencyMs: Date.now() - start,
+        googleError: null,
+      };
+    } catch { }
+  }
+
+  return {
+    googleAccessible: false,
+    googleLatencyMs: null,
+    googleError: 'Google unreachable through tunnel',
+  };
+}
+
+/**
+ * Check if `google.com` is reachable through a V2Ray SOCKS5 proxy on
+ * localhost. Required because native Node `fetch` silently ignores SOCKS
+ * proxy agents — must use axios + SocksProxyAgent.
+ *
+ * @param {number} proxyPort - Local V2Ray SOCKS5 port (e.g. 1080)
+ * @param {number} [timeoutMs=10000]
+ * @returns {Promise<{ googleAccessible: boolean, googleLatencyMs: number|null, googleError: string|null }>}
+ */
+export async function checkGoogleViaSocks5(proxyPort, timeoutMs = 10_000) {
+  const start = Date.now();
+  const agent = new SocksProxyAgent(`socks5://127.0.0.1:${proxyPort}`);
+  try {
+    await axios.get(`https://${GOOGLE_HOST}/`, {
+      timeout: timeoutMs,
+      httpAgent: agent,
+      httpsAgent: agent,
+      maxRedirects: 2,
+      validateStatus: () => true,
+    });
+    return {
+      googleAccessible: true,
+      googleLatencyMs: Date.now() - start,
+      googleError: null,
+    };
+  } catch (err) {
+    return {
+      googleAccessible: false,
+      googleLatencyMs: null,
+      googleError: err.message || 'Google unreachable through SOCKS5',
+    };
+  } finally {
+    agent.destroy();
+  }
+}
+
