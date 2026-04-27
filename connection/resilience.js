@@ -210,12 +210,12 @@ export async function tryFastReconnect(opts, state = _defaultState) {
           }
           try { await disconnectWireGuard(); } catch {}
           // End session on chain (fire-and-forget)
-          if (saved.sessionId && state._mnemonic) {
-            _endSessionOnChain(saved.sessionId, state._mnemonic).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
+          if (saved.sessionId && state._wallet) {
+            _endSessionOnChain(saved.sessionId, state._wallet).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
           }
           state.wgTunnel = null;
           state.connection = null;
-          state._mnemonic = null;
+          state._wallet = null;
           clearState();
         },
       };
@@ -335,11 +335,11 @@ export async function tryFastReconnect(opts, state = _defaultState) {
           if (state.v2rayProc) { state.v2rayProc.kill(); state.v2rayProc = null; await sleep(500); }
           if (state.systemProxy) clearSystemProxy(state);
           // End session on chain (fire-and-forget)
-          if (sessionIdStr && state._mnemonic) {
-            _endSessionOnChain(sessionIdStr, state._mnemonic).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
+          if (sessionIdStr && state._wallet) {
+            _endSessionOnChain(sessionIdStr, state._wallet).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
           }
           state.connection = null;
-          state._mnemonic = null;
+          state._wallet = null;
           clearState();
         },
       };
