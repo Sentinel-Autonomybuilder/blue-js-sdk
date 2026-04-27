@@ -525,3 +525,10 @@ export {
   reorderOutbounds,
   getCacheStats,
 } from './audit.js';
+
+// ─── Auth Utilities (Keplr) ─────────────────────────────────────────
+
+export {
+  buildKeplrSignDoc,
+  broadcastSignedKeplrTx,
+} from './auth/keplr-signdoc.js';
