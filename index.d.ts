@@ -1545,8 +1545,12 @@ export class ConnectionState {
   connection: any;
   systemProxy: boolean;
   savedProxyState: any;
-  /** @internal Stored for session-end TX on disconnect. Cleared after use. */
-  _mnemonic: string | null;
+  /**
+   * @internal Derived OfflineSigner wallet, used by _endSessionOnChain on disconnect.
+   * v37 (security): replaced `_mnemonic: string | null`. The raw BIP-39 phrase is no
+   * longer kept on long-lived state — see ConnectionState in connection/state.js.
+   */
+  _wallet: any;
   readonly isConnected: boolean;
   destroy(): void;
 }

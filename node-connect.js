@@ -116,7 +116,9 @@ export class ConnectionState {
     this.systemProxy = false;
     this.connection = null;  // { nodeAddress, serviceType, sessionId, connectedAt, socksPort? }
     this.savedProxyState = null;
-    this._mnemonic = null;   // Stored for session-end TX on disconnect (zeroed after use)
+    // v37 (security): store the derived OfflineSigner — NOT the BIP-39 mnemonic.
+    // See connection/state.js for the rationale (heap-dump attack surface).
+    this._wallet = null;     // OfflineSigner — used by _endSessionOnChain on disconnect
     this._feeGranter = null; // Stored for fee-granted session end on disconnect (0-P2P agents)
     _activeStates.add(this);
   }
@@ -798,12 +800,12 @@ export async function tryFastReconnect(opts, state = _defaultState) {
           if (_killSwitchEnabled) disableKillSwitch();
           try { await disconnectWireGuard(); } catch {}
           // End session on chain (fire-and-forget)
-          if (saved.sessionId && state._mnemonic) {
-            _endSessionOnChain(saved.sessionId, state._mnemonic, state._feeGranter).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
+          if (saved.sessionId && state._wallet) {
+            _endSessionOnChain(saved.sessionId, state._wallet, state._feeGranter).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
           }
           state.wgTunnel = null;
           state.connection = null;
-          state._mnemonic = null;
+          state._wallet = null;
           clearState();
         },
       };
@@ -923,11 +925,11 @@ export async function tryFastReconnect(opts, state = _defaultState) {
           if (state.v2rayProc) { state.v2rayProc.kill(); state.v2rayProc = null; await sleep(500); }
           if (state.systemProxy) clearSystemProxy(state);
           // End session on chain (fire-and-forget)
-          if (sessionIdStr && state._mnemonic) {
-            _endSessionOnChain(sessionIdStr, state._mnemonic, state._feeGranter).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
+          if (sessionIdStr && state._wallet) {
+            _endSessionOnChain(sessionIdStr, state._wallet, state._feeGranter).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
           }
           state.connection = null;
-          state._mnemonic = null;
+          state._wallet = null;
           clearState();
         },
       };
@@ -993,9 +995,11 @@ export async function connectDirect(opts) {
 
   // ── Fast Reconnect: check for saved credentials ──
   if (!forceNewSession) {
-    // Set mnemonic on state BEFORE fast reconnect — needed for _endSessionOnChain() on disconnect
-    (opts._state || _defaultState)._mnemonic = opts.mnemonic;
-    const fast = await tryFastReconnect(opts, opts._state || _defaultState);
+    // v37: Derive wallet up front so _endSessionOnChain() has a signer if fast reconnect succeeds.
+    // cachedCreateWallet is keyed on mnemonic SHA256 — connectInternal() below reuses the same object.
+    const fastState = opts._state || _defaultState;
+    fastState._wallet = await cachedCreateWallet(opts.mnemonic);
+    const fast = await tryFastReconnect(opts, fastState);
     if (fast) {
       _circuitBreaker.delete(opts.nodeAddress);
       return fast;
@@ -1017,7 +1021,10 @@ export async function connectDirect(opts) {
         // lower-ID sessions before MsgStartSession — mirrors C# SessionManager dedup pattern.
         onStaleDuplicate: (staleId) => {
           logFn?.(`[connect] Cancelling stale duplicate session ${staleId} on ${opts.nodeAddress}...`);
-          _endSessionOnChain(staleId, opts.mnemonic, opts.feeGranter || null).catch(e => {
+          // v37: pass the derived wallet (set on state above) instead of the mnemonic
+          const w = (opts._state || _defaultState)._wallet;
+          if (!w) { logFn?.(`[connect] No wallet on state — skipping stale session ${staleId} cleanup`); return; }
+          _endSessionOnChain(staleId, w, opts.feeGranter || null).catch(e => {
             logFn?.(`[connect] Failed to cancel stale session ${staleId}: ${e.message}`);
           });
         },
@@ -1490,13 +1497,17 @@ async function connectInternal(opts, paymentStrategy, retryStrategy, state = _de
   // v21: parallelized — saves ~300ms (was sequential)
   progress(onProgress, logFn, 'wallet', 'Setting up wallet...');
   checkAborted(signal);
-  const [{ wallet, account }, privKey] = await Promise.all([
+  const [walletResult, privKey] = await Promise.all([
     cachedCreateWallet(opts.mnemonic),
     privKeyFromMnemonic(opts.mnemonic),
   ]);
+  const { wallet, account } = walletResult;
 
-  // Store mnemonic + feeGranter on state for session-end TX on disconnect (fire-and-forget cleanup)
-  state._mnemonic = opts.mnemonic;
+  // v37 (security): store the derived OfflineSigner — NOT the raw BIP-39 phrase.
+  // _endSessionOnChain only signs one TX on disconnect; it doesn't need the recovery
+  // phrase, and keeping the phrase in heap for the full session expanded the
+  // heap-dump attack surface unnecessarily.
+  state._wallet = walletResult;
   state._feeGranter = opts.feeGranter || null;
 
   // 2. RPC connect + LCD lookup in parallel (independent network calls)
@@ -1884,12 +1895,12 @@ async function setupWireGuard({ remoteUrl, sessionId, privKey, fullTunnel, split
       if (_killSwitchEnabled) disableKillSwitch();
       try { await disconnectWireGuard(); } catch {} // tunnel may already be down
       // End session on chain (fire-and-forget)
-      if (sessionIdStr && state._mnemonic) {
-        _endSessionOnChain(sessionIdStr, state._mnemonic, state._feeGranter).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
+      if (sessionIdStr && state._wallet) {
+        _endSessionOnChain(sessionIdStr, state._wallet, state._feeGranter).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
       }
       state.wgTunnel = null;
       state.connection = null;
-      state._mnemonic = null;
+      state._wallet = null;
       clearState();
     },
   };
@@ -2148,11 +2159,11 @@ async function setupV2Ray({ remoteUrl, serverHost, sessionId, privKey, v2rayExeP
       if (state.v2rayProc) { state.v2rayProc.kill(); state.v2rayProc = null; await sleep(500); }
       if (state.systemProxy) clearSystemProxy();
       // End session on chain (fire-and-forget)
-      if (sessionIdStr && state._mnemonic) {
-        _endSessionOnChain(sessionIdStr, state._mnemonic, state._feeGranter).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
+      if (sessionIdStr && state._wallet) {
+        _endSessionOnChain(sessionIdStr, state._wallet, state._feeGranter).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
       }
       state.connection = null;
-      state._mnemonic = null;
+      state._wallet = null;
       clearState();
     },
   };
@@ -2183,8 +2194,8 @@ export function getStatus() {
     const stale = _defaultState.connection;
     _defaultState.connection = null;
     // End session on chain (fire-and-forget) to prevent stale session leaks
-    if (stale?.sessionId && _defaultState._mnemonic) {
-      _endSessionOnChain(stale.sessionId, _defaultState._mnemonic, _defaultState._feeGranter).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
+    if (stale?.sessionId && _defaultState._wallet) {
+      _endSessionOnChain(stale.sessionId, _defaultState._wallet, _defaultState._feeGranter).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
     }
     clearState();
     events.emit('disconnected', { nodeAddress: stale.nodeAddress, serviceType: stale.serviceType, reason: 'phantom_state' });
@@ -2230,8 +2241,8 @@ export function getStatus() {
   // clean up stale state. Prevents ghost "connected" status after tunnel dies.
   if (!healthChecks.tunnelActive && !_defaultState.v2rayProc && !_defaultState.wgTunnel) {
     // Both tunnel handles are null — connection state is stale
-    if (conn?.sessionId && _defaultState._mnemonic) {
-      _endSessionOnChain(conn.sessionId, _defaultState._mnemonic, _defaultState._feeGranter).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
+    if (conn?.sessionId && _defaultState._wallet) {
+      _endSessionOnChain(conn.sessionId, _defaultState._wallet, _defaultState._feeGranter).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
     }
     _defaultState.connection = null;
     clearState();
@@ -2239,8 +2250,8 @@ export function getStatus() {
   }
   if (_defaultState.wgTunnel && !healthChecks.tunnelActive) {
     // WireGuard state says connected but tunnel is dead — auto-cleanup
-    if (conn?.sessionId && _defaultState._mnemonic) {
-      _endSessionOnChain(conn.sessionId, _defaultState._mnemonic, _defaultState._feeGranter).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
+    if (conn?.sessionId && _defaultState._wallet) {
+      _endSessionOnChain(conn.sessionId, _defaultState._wallet, _defaultState._feeGranter).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
     }
     _defaultState.wgTunnel = null;
     _defaultState.connection = null;
@@ -2250,8 +2261,8 @@ export function getStatus() {
   }
   if (_defaultState.v2rayProc && !healthChecks.tunnelActive) {
     // V2Ray process died — auto-cleanup
-    if (conn?.sessionId && _defaultState._mnemonic) {
-      _endSessionOnChain(conn.sessionId, _defaultState._mnemonic, _defaultState._feeGranter).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
+    if (conn?.sessionId && _defaultState._wallet) {
+      _endSessionOnChain(conn.sessionId, _defaultState._wallet, _defaultState._feeGranter).then(r => events.emit('sessionEnded', { txHash: r?.transactionHash })).catch(e => events.emit('sessionEndFailed', { error: e.message }));
     }
     _defaultState.v2rayProc = null;
     _defaultState.connection = null;
@@ -2335,8 +2346,8 @@ async function _disconnectInternal(state, { endSession }) {
 
     if (endSession) {
       // Hard disconnect: broadcast MsgCancelSession — session settles and refunds deposit.
-      if (prev?.sessionId && state._mnemonic) {
-        _endSessionOnChain(prev.sessionId, state._mnemonic, state._feeGranter).catch(e => {
+      if (prev?.sessionId && state._wallet) {
+        _endSessionOnChain(prev.sessionId, state._wallet, state._feeGranter).catch(e => {
           console.warn(`[sentinel-sdk] Failed to end session ${prev.sessionId} on chain: ${e.message}`);
         });
       }
@@ -2348,7 +2359,7 @@ async function _disconnectInternal(state, { endSession }) {
     }
   } finally {
     // ALWAYS clear connection state — even if teardown threw
-    state._mnemonic = null;
+    state._wallet = null;
     state._feeGranter = null;
     state.connection = null;
     clearState();
@@ -2415,11 +2426,14 @@ export async function disconnectAndEndSession() {
  * End a session on-chain. Best-effort, fire-and-forget.
  * Prevents stale session accumulation on nodes.
  * @param {string|bigint} sessionId - Session ID to end
- * @param {string} mnemonic - BIP39 mnemonic for signing the TX
+ * @param {object} walletObj - { wallet, account } from cachedCreateWallet (NOT the mnemonic).
+ *   v37 (security): the BIP-39 phrase is no longer kept on ConnectionState.
+ * @param {string} [feeGranter] - Optional fee grant payer for 0-P2P agents
  * @private
  */
-async function _endSessionOnChain(sessionId, mnemonic, feeGranter = null) {
-  const { wallet, account } = await cachedCreateWallet(mnemonic);
+async function _endSessionOnChain(sessionId, walletObj, feeGranter = null) {
+  if (!walletObj) throw new SentinelError(ErrorCodes.INVALID_OPTIONS, '_endSessionOnChain requires a wallet object');
+  const { wallet, account } = walletObj;
   const client = await tryWithFallback(
     RPC_ENDPOINTS,
     async (url) => createClient(url, wallet),
