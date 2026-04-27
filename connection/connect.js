@@ -15,7 +15,7 @@ import {
 import {
   createClient, privKeyFromMnemonic, broadcastWithFeeGrant,
   extractId, findExistingSession, getBalance, MSG_TYPES, queryNode,
-  isMnemonicValid, filterNodes,
+  isMnemonicValid, filterNodes, checkFeeGrant,
 } from '../cosmjs-setup.js';
 import { nodeStatusV3, waitForPort } from '../v3protocol.js';
 import {
@@ -711,6 +711,22 @@ export async function connectViaPlan(opts) {
     // Fee grant: the app passes the plan owner's address as feeGranter.
     const feeGranter = opts.feeGranter || null;
 
+    // Opt-in precheck: verify the grant exists and is not expired before the TX.
+    // Builders who prefer fail-fast over silent user-pay fallback set requireFeeGrant.
+    if (feeGranter && opts.requireFeeGrant === true) {
+      const status = await checkFeeGrant(lcdUrl, feeGranter, account.address);
+      if (!status.exists) {
+        throw new ChainError(ErrorCodes.FEE_GRANT_MISSING_AT_START,
+          `Required fee grant missing from ${feeGranter} to ${account.address}`,
+          { granter: feeGranter, grantee: account.address });
+      }
+      if (status.expired) {
+        throw new ChainError(ErrorCodes.FEE_GRANT_EXPIRED,
+          `Required fee grant expired at ${status.expiresAt?.toISOString()}`,
+          { granter: feeGranter, grantee: account.address, expiresAt: status.expiresAt });
+      }
+    }
+
     progress(null, opts.log || defaultLog, 'session', `Subscribing to plan ${opts.planId} + starting session${feeGranter ? ' (fee granted)' : ''}...`);
 
     let result;
@@ -718,8 +734,10 @@ export async function connectViaPlan(opts) {
       try {
         result = await broadcastWithFeeGrant(client, account.address, [msg], feeGranter);
       } catch (feeErr) {
-        // Fee grant TX failed — fall back to user-paid
-        progress(null, opts.log || defaultLog, 'session', 'Fee grant failed, paying gas from wallet...');
+        if (opts.requireFeeGrant === true) throw feeErr;
+        // Fee grant TX failed — fall back to user-paid (default behavior)
+        const reason = feeErr?.message ? `: ${feeErr.message}` : '';
+        progress(null, opts.log || defaultLog, 'session', `Fee grant failed${reason}, paying gas from wallet...`);
         result = await broadcastWithInactiveRetry(client, account.address, [msg], opts.log || defaultLog, opts.onProgress);
       }
     } else {
@@ -780,7 +798,7 @@ export async function connectViaSubscription(opts) {
   try {
 
   async function subPayment(ctx) {
-    const { client, account, logFn, onProgress, signal } = ctx;
+    const { client, account, lcd: lcdUrl, logFn, onProgress, signal } = ctx;
     const msg = {
       typeUrl: MSG_TYPES.SUB_START_SESSION,
       value: {
@@ -794,6 +812,22 @@ export async function connectViaSubscription(opts) {
 
     // Fee grant: operator pays gas for the agent (e.g., x402 managed plan flow)
     const feeGranter = opts.feeGranter || null;
+
+    // Opt-in precheck: verify the grant exists and is not expired before the TX.
+    if (feeGranter && opts.requireFeeGrant === true) {
+      const status = await checkFeeGrant(lcdUrl, feeGranter, account.address);
+      if (!status.exists) {
+        throw new ChainError(ErrorCodes.FEE_GRANT_MISSING_AT_START,
+          `Required fee grant missing from ${feeGranter} to ${account.address}`,
+          { granter: feeGranter, grantee: account.address });
+      }
+      if (status.expired) {
+        throw new ChainError(ErrorCodes.FEE_GRANT_EXPIRED,
+          `Required fee grant expired at ${status.expiresAt?.toISOString()}`,
+          { granter: feeGranter, grantee: account.address, expiresAt: status.expiresAt });
+      }
+    }
+
     progress(null, opts.log || defaultLog, 'session', `Starting session via subscription ${opts.subscriptionId}${feeGranter ? ' (fee granted)' : ''}...`);
 
     let result;
@@ -801,8 +835,10 @@ export async function connectViaSubscription(opts) {
       try {
         result = await broadcastWithFeeGrant(client, account.address, [msg], feeGranter);
       } catch (feeErr) {
-        // Fee grant TX failed — fall back to user-paid
-        progress(null, opts.log || defaultLog, 'session', 'Fee grant failed, paying gas from wallet...');
+        if (opts.requireFeeGrant === true) throw feeErr;
+        // Fee grant TX failed — fall back to user-paid (default behavior)
+        const reason = feeErr?.message ? `: ${feeErr.message}` : '';
+        progress(null, opts.log || defaultLog, 'session', `Fee grant failed${reason}, paying gas from wallet...`);
         result = await broadcastWithInactiveRetry(client, account.address, [msg], opts.log || defaultLog, opts.onProgress);
       }
     } else {

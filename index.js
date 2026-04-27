@@ -95,6 +95,7 @@ export {
   buildRevokeFeeGrantMsg,
   queryFeeGrants,
   queryFeeGrant,
+  checkFeeGrant,
   // Authz
   buildAuthzGrantMsg,
   buildAuthzRevokeMsg,
@@ -107,6 +108,8 @@ export {
   // Plan Subscriber Helpers (v25b)
   queryPlanSubscribers,
   getPlanStats,
+  queryPlanDetails,
+  isActiveStatus,
   // Fee Grant Workflow (v25b)
   grantPlanSubscribers,
   queryFeeGrantsIssued,
@@ -139,8 +142,6 @@ export {
   querySessions,
   querySubscription,
   hasActiveSubscription,
-  isActiveStatus,
-  queryPlanDetails,
   // v26c: Display helpers
   formatBytes,
   parseChainDuration,
@@ -543,6 +544,13 @@ export {
   getCacheStats,
 } from './audit.js';
 
+// ─── Plan Ownership Pre-Flight ──────────────────────────────────────────────
+
+export {
+  assertPlanOwnership,
+  PlanOwnershipError,
+  walletToProviderAddr,
+} from './operator/plan-ownership.js';
 // ─── Auth Utilities (Keplr) ─────────────────────────────────────────
 
 export {

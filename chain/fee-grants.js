@@ -185,6 +185,62 @@ export async function queryFeeGrant(lcdUrl, granter, grantee) {
   } catch { return null; } // 404 = no grant
 }
 
+/**
+ * Builder-friendly fee-grant check. Returns a parsed, normalized status so
+ * callers don't have to walk nested `AllowedMsgAllowance` → `BasicAllowance`
+ * shapes. Use this before broadcasting plan/subscription sessions that rely on
+ * a granter paying gas.
+ *
+ * RPC-first with LCD fallback. Either both granter+grantee, or pre-fetched
+ * allowance object can be passed.
+ *
+ * @param {string} lcdUrl - LCD endpoint (for fallback)
+ * @param {string} granter - sent1... granter address
+ * @param {string} grantee - sent1... grantee address
+ * @returns {Promise<{ exists: boolean, expired: boolean, expiresAt: Date|null, spendLimit: Array<{denom:string,amount:string}>, allowedMessages: string[]|null, typeUrl: string, raw: object|null }>}
+ */
+export async function checkFeeGrant(lcdUrl, granter, grantee) {
+  const allowance = await queryFeeGrant(lcdUrl, granter, grantee);
+  if (!allowance) {
+    return {
+      exists: false,
+      expired: false,
+      expiresAt: null,
+      spendLimit: [],
+      allowedMessages: null,
+      typeUrl: '',
+      raw: null,
+    };
+  }
+
+  // If shape is { granter, grantee, allowance: {...} } from rpcQueryFeeGrant
+  const inner = allowance.allowance || allowance;
+  const typeUrl = inner['@type'] || '';
+  let basic = inner;
+  let allowedMessages = null;
+  if (typeUrl.includes('AllowedMsgAllowance')) {
+    allowedMessages = inner.allowed_messages || [];
+    basic = inner.allowance || null;
+  }
+
+  const spendLimit = (basic?.spend_limit || []).map(c => ({
+    denom: c.denom,
+    amount: String(c.amount || '0'),
+  }));
+  const expiresAt = basic?.expiration ? new Date(basic.expiration) : null;
+  const expired = expiresAt ? expiresAt.getTime() <= Date.now() : false;
+
+  return {
+    exists: true,
+    expired,
+    expiresAt,
+    spendLimit,
+    allowedMessages,
+    typeUrl,
+    raw: allowance,
+  };
+}
+
 // ─── Fee Grant Workflow Helpers (v25b) ────────────────────────────────────────
 
 /**
