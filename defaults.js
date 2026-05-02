@@ -29,8 +29,10 @@ export const SDK_VERSION = '2.4.0';
 
 // ─── Timestamps ──────────────────────────────────────────────────────────────
 
-/** When these defaults were last verified against the live chain */
-export const LAST_VERIFIED = '2026-03-08T00:00:00Z';
+/** When these defaults were last verified against the live chain.
+ *  RPC + LCD endpoint lists refreshed 2026-05-02 (audit-rpc-endpoints.mjs).
+ *  Other defaults (gas, transport rates, etc.) still 2026-03-08. */
+export const LAST_VERIFIED = '2026-05-02T00:00:00Z';
 
 /** Human-readable note for builders */
 export const HARDCODED_NOTE = 'Static defaults — no RPC query server yet. Verify endpoints are live before production use. See README.md "Hardcoded Defaults" section.';
@@ -44,28 +46,43 @@ export const CHAIN_VERSION = 'v12.0.0';     // sentinelhub version
 export const COSMOS_SDK_VERSION = '0.47.17';
 
 // ─── RPC Endpoints (TX broadcast) ────────────────────────────────────────────
-// Ordered by reliability. Primary is tried first, fallbacks on failure.
-// Verified reachable 2026-03-08.
+// Ordered by measured latency from a 22-candidate audit on 2026-04-30 against
+// a known funded address (verified each endpoint returned the correct on-chain
+// balance, not just /status). Run scripts/audit-rpc-endpoints.mjs to refresh.
+//
+// rpc.sentinel.co is intentionally LAST: on 2026-04-30 it was ~22k blocks
+// behind tip and serving stale ABCI state (returned 0 for funded addresses).
+// Kept as last-resort fallback because some integrators hardcode it.
 
 export const RPC_ENDPOINTS = [
-  { url: 'https://rpc.sentinel.co:443',           name: 'Sentinel Official',  verified: '2026-03-08' },
-  { url: 'https://sentinel-rpc.polkachu.com',     name: 'Polkachu',           verified: '2026-03-08' },
-  { url: 'https://rpc.mathnodes.com',             name: 'MathNodes',          verified: '2026-03-08' },
-  { url: 'https://sentinel-rpc.publicnode.com',   name: 'PublicNode',         verified: '2026-03-08' },
-  { url: 'https://rpc.sentinel.quokkastake.io',   name: 'QuokkaStake',       verified: '2026-03-08' },
+  { url: 'https://rpc-sentinel.busurnode.com',      name: 'Busurnode',            verified: '2026-05-02' },
+  { url: 'https://sentinel-rpc.publicnode.com',     name: 'PublicNode (Allnodes)', verified: '2026-05-02' },
+  { url: 'https://rpc.trinitystake.io',             name: 'Trinity Stake',        verified: '2026-05-02' },
+  { url: 'https://rpc.sentinel.validatus.com',      name: 'Validatus',            verified: '2026-05-02' },
+  { url: 'https://sentinel-rpc.polkachu.com',       name: 'Polkachu',             verified: '2026-05-02' },
+  { url: 'https://rpc.dvpn.roomit.xyz',             name: 'Roomit',               verified: '2026-05-02' },
+  { url: 'https://rpc.sentinel.quokkastake.io',     name: 'QuokkaStake',          verified: '2026-05-02' },
+  { url: 'https://rpc.sentinel.suchnode.net',       name: 'SuchNode',             verified: '2026-05-02' },
+  { url: 'https://rpc-sentinel.chainvibes.com',     name: 'ChainVibes',           verified: '2026-05-02' },
+  { url: 'https://rpc.sentineldao.com',             name: 'Sentinel Growth DAO',  verified: '2026-05-02' },
+  { url: 'https://rpc.mathnodes.com',               name: 'MathNodes',            verified: '2026-05-02' },
+  { url: 'https://rpc.sentinel.chaintools.tech',    name: 'ChainTools',           verified: '2026-05-02' },
+  { url: 'https://rpc.sentinel.co:443',             name: 'Sentinel Official (stale fallback)', verified: '2026-05-02' },
 ];
 
 export const DEFAULT_RPC = RPC_ENDPOINTS[0].url;
 
 // ─── LCD Endpoints (REST queries) ────────────────────────────────────────────
-// Ordered by reliability. All have same limitations (v3 providers = 501, plan details = 501).
-// Verified reachable 2026-03-08.
+// Same audit methodology as RPC. lcd.sentinel.co also returned stale data on
+// 2026-04-30 (0 balance for a funded address) and sits last for parity.
 
 export const LCD_ENDPOINTS = [
-  { url: 'https://lcd.sentinel.co',               name: 'Sentinel Official',  verified: '2026-03-08' },
-  { url: 'https://sentinel-api.polkachu.com',     name: 'Polkachu',           verified: '2026-03-08' },
-  { url: 'https://api.sentinel.quokkastake.io',   name: 'QuokkaStake',       verified: '2026-03-08' },
-  { url: 'https://sentinel-rest.publicnode.com',   name: 'PublicNode',         verified: '2026-03-08' },
+  { url: 'https://api-sentinel.busurnode.com',      name: 'Busurnode',            verified: '2026-05-02' },
+  { url: 'https://api.sentinel.suchnode.net',       name: 'SuchNode',             verified: '2026-05-02' },
+  { url: 'https://api.sentinel.quokkastake.io',     name: 'QuokkaStake',          verified: '2026-05-02' },
+  { url: 'https://sentinel-api.polkachu.com',       name: 'Polkachu',             verified: '2026-05-02' },
+  { url: 'https://sentinel-rest.publicnode.com',    name: 'PublicNode (Allnodes)', verified: '2026-05-02' },
+  { url: 'https://lcd.sentinel.co',                 name: 'Sentinel Official (stale fallback)', verified: '2026-05-02' },
 ];
 
 export const DEFAULT_LCD = LCD_ENDPOINTS[0].url;
