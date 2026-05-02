@@ -170,6 +170,38 @@ jobs:
           }
           SCRIPT
 
+      - name: Verify published tarball imports cleanly
+        # Catches packaging regressions where a directory is imported by index.js
+        # but missing from package.json "files" — the regression that broke 2.7.1
+        # (auth/ + operator/ unpublished, npm install → ERR_MODULE_NOT_FOUND).
+        run: |
+          set -e
+          npm pack --silent
+          TARBALL=$(ls blue-js-sdk-*.tgz | head -1)
+          VERIFY_DIR=$(mktemp -d)
+          cp "$TARBALL" "$VERIFY_DIR/"
+          cd "$VERIFY_DIR"
+          npm init -y >/dev/null
+          npm install "./$TARBALL" --no-audit --no-fund --ignore-scripts --silent
+          node --input-type=module <<'SCRIPT'
+          try {
+            const m = await import('blue-js-sdk');
+            const count = Object.keys(m).length;
+            if (count < 100) {
+              console.error(`Expected 100+ exports from published tarball, got ${count}`);
+              process.exit(1);
+            }
+            console.log(`Published tarball imports cleanly: ${count} exports`);
+          } catch (e) {
+            console.error('FAILED to import published tarball:', e.message);
+            if (e.code === 'ERR_MODULE_NOT_FOUND') {
+              console.error('A directory referenced by index.js is missing from package.json "files".');
+              console.error('Add it to the "files" array, then rerun npm pack to verify.');
+            }
+            process.exit(1);
+          }
+          SCRIPT
+
       - name: Verify submodule imports resolve
         run: |
           node --input-type=module <<'SCRIPT'
