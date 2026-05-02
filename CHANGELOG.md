@@ -2,6 +2,30 @@
 
 Every fix made during SDK creation, why it matters, and what happens if you use upstream Sentinel code directly without these fixes.
 
+## v2.7.2 — Packaging Fix: include `auth/` and `operator/` in tarball (2026-05-02)
+
+**2.7.1 shipped without `auth/` and `operator/` directories.** `index.js` imports
+from both (`./auth/adr36.js`, `./operator/auto-lease.js`, etc.), but they were
+absent from the `files` array in `package.json`. Local CI passed because every
+relative import resolved on disk — but `npm install blue-js-sdk@2.7.1` threw
+`ERR_MODULE_NOT_FOUND: ...auth/adr36.js` for every consumer. Plan Manager's
+attempt to upgrade to 2.7.1 surfaced the regression.
+
+### Fix
+- `package.json` `files`: added `auth/` and `operator/` so they ship in the tarball.
+- `.github/workflows/ci.yml`: added a "Verify published tarball imports cleanly"
+  step that runs `npm pack`, installs the resulting tarball into a temp directory,
+  and imports `blue-js-sdk` — the only test that exercises the actual published
+  surface. Local-import checks (which 2.7.1's CI relied on) cannot catch
+  packaging drift; only a tarball install can.
+
+### Rule
+**Every directory imported by `index.js` MUST appear in `package.json` "files".**
+The tarball-install CI step is now the gate that enforces this. Adding a new
+top-level directory? It must also be added to `files` in the same diff.
+
+---
+
 ## v2.3.0 — RPC-First Migration (2026-04-14)
 
 **100% of chain queries now use RPC-first with LCD fallback.** Protobuf/ABCI queries via Tendermint37Client are ~912x faster than LCD REST. If RPC fails, every query automatically falls back to LCD.
